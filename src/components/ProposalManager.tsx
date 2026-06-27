@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Proposal, SymptomCategory, Severity, Gender, SYMPTOM_CATEGORIES, SEVERITIES, PlanSet } from '@/lib/types';
+import { useState, useMemo, useRef } from 'react';
+import { Proposal, SymptomCategory, Severity, Gender, SYMPTOM_CATEGORIES, SEVERITIES, PlanSet, MenuItem } from '@/lib/types';
 import { generateProposalSections, buildProposalFromInput } from '@/lib/proposalPresets';
 
 type Mode = 'list' | 'edit' | 'preview';
@@ -35,12 +35,13 @@ function emptyProposal(): Proposal {
 interface Props {
   proposals: Proposal[];
   planSets: PlanSet[];
+  menuItems: MenuItem[];
   onSave: (p: Proposal) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
 }
 
-export default function ProposalManager({ proposals, planSets, onSave, onDelete, showToast }: Props) {
+export default function ProposalManager({ proposals, planSets, menuItems, onSave, onDelete, showToast }: Props) {
   const [mode, setMode] = useState<Mode>('list');
   const [draft, setDraft] = useState<Proposal | null>(null);
 
@@ -110,6 +111,8 @@ export default function ProposalManager({ proposals, planSets, onSave, onDelete,
         draft={draft}
         setDraft={setDraft}
         planSets={planSets}
+        menuItems={menuItems}
+        showToast={showToast}
         onSave={handleSave}
         onCancel={cancel}
         onPreview={() => {
@@ -216,6 +219,8 @@ function ProposalForm({
   draft,
   setDraft,
   planSets,
+  menuItems,
+  showToast,
   onSave,
   onCancel,
   onPreview,
@@ -223,6 +228,8 @@ function ProposalForm({
   draft: Proposal;
   setDraft: (p: Proposal) => void;
   planSets: PlanSet[];
+  menuItems: MenuItem[];
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
   onSave: () => void;
   onCancel: () => void;
   onPreview: () => void;
@@ -233,6 +240,14 @@ function ProposalForm({
 
   return (
     <div className="space-y-5">
+      <VoiceCapture
+        draft={draft}
+        setDraft={setDraft}
+        menuItems={menuItems}
+        planSets={planSets}
+        showToast={showToast}
+      />
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
         <h2 className="text-lg font-bold text-slate-800 mb-4">提案書の作成・編集</h2>
 
@@ -477,3 +492,240 @@ function ProposalPreview({
 
 // expose helper for parent component
 export { buildProposalFromInput };
+
+// ────────── VoiceCapture ──────────
+
+function VoiceCapture({
+  draft,
+  setDraft,
+  menuItems,
+  planSets,
+  showToast,
+}: {
+  draft: Proposal;
+  setDraft: (p: Proposal) => void;
+  menuItems: MenuItem[];
+  planSets: PlanSet[];
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [transcript, setTranscript] = useState('');
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+  };
+
+  const cleanup = () => {
+    stopTimer();
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    recorderRef.current = null;
+    chunksRef.current = [];
+  };
+
+  const startRecording = async () => {
+    if (recording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : '';
+      const rec = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      recorderRef.current = rec;
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/webm' });
+        cleanup();
+        await sendForTranscription(blob);
+      };
+      rec.start();
+      setRecording(true);
+      setSeconds(0);
+      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+    } catch {
+      showToast('マイクの許可が必要です（ブラウザの設定をご確認ください）', 'error');
+    }
+  };
+
+  const stopRecording = () => {
+    if (!recording) return;
+    setRecording(false);
+    stopTimer();
+    try {
+      recorderRef.current?.stop();
+    } catch {
+      cleanup();
+    }
+  };
+
+  const sendForTranscription = async (blob: Blob) => {
+    setTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append('audio', blob, 'recording.webm');
+      const r = await fetch('/api/transcribe', { method: 'POST', body: form });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || '文字起こしに失敗しました');
+      }
+      const data = (await r.json()) as { text: string };
+      setTranscript((prev) => (prev ? prev + '\n' + data.text : data.text));
+      showToast('文字起こし完了', 'success');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '文字起こしエラー', 'error');
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const generateFromTranscript = async () => {
+    if (!transcript.trim()) {
+      showToast('文字起こしテキストが空です', 'warning');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const r = await fetch('/api/generate-proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          menuItems: menuItems.map((m) => ({
+            name: m.name,
+            category: m.category,
+            price: m.price,
+            unit: m.unit,
+            description: m.description,
+          })),
+          planSets: planSets.map((ps) => ({
+            id: ps.id,
+            name: ps.name,
+            plans: ps.plans.map((p) => ({ name: p.name, totalPrice: p.totalPrice, isRecommended: p.isRecommended })),
+          })),
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || '生成に失敗しました');
+      }
+      const data = (await r.json()) as {
+        result: {
+          patientName?: string;
+          patientAge?: number | null;
+          patientGender?: Gender | null;
+          symptomCategory?: SymptomCategory;
+          severity?: Severity;
+          chiefComplaint?: string;
+          background?: string;
+          observation?: string;
+          specialNotes?: string;
+          recommendedPlanSetId?: string;
+        };
+      };
+      const r2 = data.result || {};
+      setDraft({
+        ...draft,
+        patientName: r2.patientName || draft.patientName,
+        patientAge: typeof r2.patientAge === 'number' ? r2.patientAge : draft.patientAge,
+        patientGender: r2.patientGender || draft.patientGender,
+        symptomCategory: r2.symptomCategory || draft.symptomCategory,
+        severity: r2.severity || draft.severity,
+        chiefComplaint: r2.chiefComplaint || draft.chiefComplaint,
+        background: r2.background || draft.background,
+        observation: r2.observation || draft.observation,
+        specialNotes: r2.specialNotes || draft.specialNotes,
+        planSetId: r2.recommendedPlanSetId || draft.planSetId,
+      });
+      showToast('Claudeで構造化しました。内容を確認・編集してください', 'success');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '生成エラー', 'error');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+  return (
+    <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl shadow-sm border border-purple-200 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+          <span>🎙️</span>音声で下書き（AIまとめ）
+        </h2>
+        <span className="text-xs text-gray-500">録音 → 文字起こし → Claudeで構造化</span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        {!recording ? (
+          <button
+            onClick={startRecording}
+            disabled={transcribing || generating}
+            className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            ● 録音開始
+          </button>
+        ) : (
+          <button
+            onClick={stopRecording}
+            className="px-5 py-2.5 bg-slate-800 text-white rounded-lg font-bold text-sm hover:bg-slate-900 transition animate-pulse"
+          >
+            ■ 停止（{mmss(seconds)}）
+          </button>
+        )}
+        {transcribing && (
+          <span className="text-sm text-purple-700 font-medium">文字起こし中...</span>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">文字起こし結果（編集可）</label>
+        <textarea
+          value={transcript}
+          onChange={(e) => setTranscript(e.target.value)}
+          rows={4}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none bg-white"
+          placeholder="録音すると自動で文字起こしされます。手入力で追記・修正してから「Claudeで構造化」を押してください。"
+        />
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 items-center">
+        <button
+          onClick={generateFromTranscript}
+          disabled={!transcript.trim() || generating || transcribing}
+          className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {generating ? 'Claude生成中...' : '✨ Claudeで構造化'}
+        </button>
+        <button
+          onClick={() => setTranscript('')}
+          disabled={!transcript || generating || transcribing}
+          className="text-xs text-gray-500 hover:text-gray-700"
+        >
+          文字起こしをクリア
+        </button>
+      </div>
+
+      <p className="text-xs text-gray-500 mt-3 leading-relaxed">
+        ※ 録音した音声はOpenAI Whisperで文字起こし後、Anthropic Claudeに送信され、提案書の各フィールドに自動入力されます。
+        生成結果はすべて手動で編集可能です。
+      </p>
+    </div>
+  );
+}
+

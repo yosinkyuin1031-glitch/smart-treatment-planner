@@ -360,6 +360,7 @@ export default function Home() {
           <ProposalManager
             proposals={proposals}
             planSets={planSets}
+            menuItems={menuItems}
             onSave={handleSaveProposal}
             onDelete={handleDeleteProposal}
             showToast={(msg) => setToast(msg)}
