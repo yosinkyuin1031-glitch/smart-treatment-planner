@@ -641,3 +641,81 @@ export async function deleteProposalFromDB(id: string): Promise<void> {
   const { error } = await supabase.from('mp_proposals').delete().eq('id', id);
   if (error) throw error;
 }
+
+// ====== Prompts ======
+
+import { Prompt, AiModel } from './types';
+
+function mapPromptRow(row: Record<string, unknown>): Prompt {
+  return {
+    id: row.id as string,
+    title: (row.title as string) || '',
+    body: (row.body as string) || '',
+    model: ((row.model as string) || 'claude') as AiModel,
+    isDefault: !!row.is_default,
+    sortOrder: (row.sort_order as number) || 0,
+    createdAt: (row.created_at as string) || new Date().toISOString(),
+    updatedAt: (row.updated_at as string) || new Date().toISOString(),
+  };
+}
+
+export async function getPromptsFromDB(): Promise<Prompt[]> {
+  const user = await getUser();
+  if (!user) return [];
+  const { data, error } = await supabase
+    .from('mp_prompts')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(mapPromptRow);
+}
+
+export async function savePromptToDB(p: Prompt): Promise<Prompt> {
+  const user = await getUser();
+  if (!user) throw new Error('ログインが必要です');
+  const now = new Date().toISOString();
+  const isNew = !p.id || p.id.startsWith('local-');
+  const payload = {
+    user_id: user.id,
+    title: p.title,
+    body: p.body,
+    model: p.model,
+    is_default: p.isDefault,
+    sort_order: p.sortOrder,
+    updated_at: now,
+  };
+  if (isNew) {
+    const { data, error } = await supabase
+      .from('mp_prompts')
+      .insert({ ...payload, created_at: now })
+      .select()
+      .single();
+    if (error) throw error;
+    return mapPromptRow(data);
+  } else {
+    const { data, error } = await supabase
+      .from('mp_prompts')
+      .update(payload)
+      .eq('id', p.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return mapPromptRow(data);
+  }
+}
+
+export async function deletePromptFromDB(id: string): Promise<void> {
+  const { error } = await supabase.from('mp_prompts').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function setDefaultPrompt(id: string): Promise<void> {
+  const user = await getUser();
+  if (!user) throw new Error('ログインが必要です');
+  // 一旦全部 false
+  await supabase.from('mp_prompts').update({ is_default: false }).eq('user_id', user.id);
+  // 対象だけ true
+  const { error } = await supabase.from('mp_prompts').update({ is_default: true }).eq('id', id);
+  if (error) throw error;
+}

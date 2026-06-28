@@ -154,6 +154,21 @@ export const THEMES: Record<ThemeKey, Theme> = {
   gray:   { key: 'gray',   label: 'グレー（その他・落ち着いた印象）', primaryBg: 'bg-slate-700',   primaryText: 'text-slate-700',   accentBg: 'bg-slate-100',   accentText: 'text-slate-800',   surfaceBg: 'bg-slate-50',   borderColor: 'border-slate-200'  },
 };
 
+// ====== プロンプトテンプレート ======
+
+export type AiModel = 'claude' | 'chatgpt' | 'gemini';
+
+export interface Prompt {
+  id: string;
+  title: string;
+  body: string;
+  model: AiModel;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export function themeForSymptom(c: SymptomCategory): ThemeKey {
   switch (c) {
     case '腰痛':

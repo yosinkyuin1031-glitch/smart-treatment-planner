@@ -460,24 +460,52 @@ function PlanLayout({ slide, theme, planSet }: { slide: ProposalSlide; theme: Th
   return (
     <div className="h-full p-10 flex flex-col bg-white">
       <H2 className="text-slate-800">{slide.title}</H2>
+      <p className="text-xs text-slate-500 mt-1">単発のメニュー合計より、お得な総合プランをご提案します</p>
       <div className={`h-px ${theme.accentBg} my-4`} />
       {planSet ? (
         <div className="flex-1 grid grid-cols-3 gap-4">
-          {planSet.plans.map((p) => (
-            <div key={p.id} className={`rounded-2xl p-5 flex flex-col border ${p.isRecommended ? theme.borderColor + ' ' + theme.surfaceBg : 'border-slate-200 bg-white'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <p className="font-serif font-bold text-base text-slate-800">{p.name}</p>
-                {p.isRecommended && <span className={`text-[10px] ${theme.primaryBg} text-white px-2 py-0.5 rounded-full`}>おすすめ</span>}
+          {planSet.plans.map((p) => {
+            const itemListPrice = p.items.reduce((sum, it) => {
+              return sum + ((it.unitPrice || 0) * (it.quantity || 1));
+            }, 0);
+            const discount = itemListPrice - p.totalPrice;
+            return (
+              <div key={p.id} className={`rounded-2xl p-5 flex flex-col border ${p.isRecommended ? theme.borderColor + ' ' + theme.surfaceBg : 'border-slate-200 bg-white'} relative overflow-hidden`}>
+                {p.isRecommended && (
+                  <div className={`absolute top-0 left-0 right-0 ${theme.primaryBg} text-white text-center py-1 text-[10px] font-bold tracking-widest`}>
+                    院長おすすめ
+                  </div>
+                )}
+                <div className={`flex items-baseline gap-2 ${p.isRecommended ? 'mt-5' : ''}`}>
+                  <p className="font-serif font-bold text-lg text-slate-800">{p.name}</p>
+                </div>
+                {p.label && <p className="text-[11px] text-slate-500 mb-3">{p.label}</p>}
+                <div className="mb-3">
+                  <p className={`text-2xl font-serif font-bold ${theme.primaryText}`}>{p.totalPrice.toLocaleString('ja-JP')}<span className="text-sm">円</span></p>
+                  {discount > 0 && (
+                    <p className="text-[10px] text-rose-600 mt-1">通常合計 {itemListPrice.toLocaleString('ja-JP')}円より <span className="font-bold">{discount.toLocaleString('ja-JP')}円お得</span></p>
+                  )}
+                </div>
+                <div className={`h-px ${theme.borderColor} mb-3`} />
+                <p className="text-[10px] text-slate-400 font-bold tracking-wider mb-2">含まれる内容</p>
+                <ul className="text-xs text-slate-700 space-y-1.5">
+                  {p.items.map((it, i) => (
+                    <li key={i} className="flex justify-between gap-2">
+                      <span className="truncate">
+                        <span className={theme.primaryText}>＋</span> {it.menuItemName}
+                      </span>
+                      <span className="text-slate-500 shrink-0 text-[10px]">×{it.quantity}{it.unit}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-auto pt-3">
+                  <div className={`text-center text-[10px] ${theme.primaryText} pt-2 border-t ${theme.borderColor}`}>
+                    施術 {p.items.length}項目
+                  </div>
+                </div>
               </div>
-              {p.label && <p className="text-[11px] text-slate-500 mb-3">{p.label}</p>}
-              <p className={`text-2xl font-serif font-bold ${theme.primaryText} mb-3`}>{p.totalPrice.toLocaleString('ja-JP')}円</p>
-              <ul className="text-xs text-slate-700 space-y-1 mt-auto">
-                {p.items.map((it, i) => (
-                  <li key={i}>＋ {it.menuItemName}（{it.quantity}{it.unit}）</li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-center">

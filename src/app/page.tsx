@@ -16,9 +16,10 @@ import PrintableMenu from '@/components/PrintableMenu';
 import PopGenerator from '@/components/PopGenerator';
 import PriceSimulation from '@/components/PriceSimulation';
 import ProposalManager from '@/components/ProposalManager';
+import PromptManager from '@/components/PromptManager';
 import { User } from '@supabase/supabase-js';
 
-type Tab = 'proposal' | 'menu' | 'plan' | 'print' | 'pop' | 'sim';
+type Tab = 'proposal' | 'menu' | 'plan' | 'print' | 'pop' | 'sim' | 'prompts';
 
 const TABS: { value: Tab; label: string; icon: string }[] = [
   { value: 'proposal', label: '提案書', icon: '📄' },
@@ -27,6 +28,7 @@ const TABS: { value: Tab; label: string; icon: string }[] = [
   { value: 'print', label: 'メニュー表', icon: '🖨️' },
   { value: 'pop', label: 'POP生成', icon: '🎨' },
   { value: 'sim', label: '価格分析', icon: '📊' },
+  { value: 'prompts', label: 'プロンプト管理', icon: '✨' },
 ];
 
 export default function Home() {
@@ -371,6 +373,7 @@ export default function Home() {
         {activeTab === 'print' && <PrintableMenu items={menuItems} />}
         {activeTab === 'pop' && <PopGenerator items={menuItems} />}
         {activeTab === 'sim' && <PriceSimulation items={menuItems} />}
+        {activeTab === 'prompts' && <PromptManager showToast={(msg) => setToast(msg)} />}
       </main>
     </div>
   );
