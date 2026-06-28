@@ -169,6 +169,7 @@ export default function ProposalManager({ proposals, planSets, menuItems, onSave
         planSets={planSets}
         onBack={() => setMode(draft.id.startsWith('local-') ? 'edit' : 'list')}
         onPrint={() => window.print()}
+        onProposalChange={(p) => setDraft(p)}
       />
     );
   }
@@ -438,14 +439,17 @@ function ProposalPreview({
   planSets,
   onBack,
   onPrint,
+  onProposalChange,
 }: {
   proposal: Proposal;
   planSets: PlanSet[];
   onBack: () => void;
   onPrint: () => void;
+  onProposalChange?: (p: Proposal) => void;
 }) {
   const planSet = useMemo(() => planSets.find((ps) => ps.id === proposal.planSetId), [planSets, proposal.planSetId]);
   const useSlides = proposal.slides && proposal.slides.length > 0;
+  const [editMode, setEditMode] = useState(false);
 
   if (useSlides) {
     return (
@@ -454,12 +458,27 @@ function ProposalPreview({
           <button onClick={onBack} className="text-sm text-gray-600 hover:text-gray-800">&larr; 戻る</button>
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-500">{proposal.slides!.length}枚のスライド形式</span>
+            <button
+              onClick={() => setEditMode((v) => !v)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition ${editMode ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'}`}
+            >
+              {editMode ? '✓ 画像編集中' : '🖼️ 画像を編集'}
+            </button>
             <button onClick={onPrint} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition">
               印刷／PDF出力
             </button>
           </div>
         </div>
-        <SlideRenderer proposal={proposal} planSets={planSets} />
+        <SlideRenderer
+          proposal={proposal}
+          planSets={planSets}
+          editable={editMode}
+          onSlideChange={(slideNo, updated) => {
+            if (!onProposalChange) return;
+            const newSlides = (proposal.slides || []).map((s) => (s.no === slideNo ? updated : s));
+            onProposalChange({ ...proposal, slides: newSlides });
+          }}
+        />
         <style jsx global>{`
           @media print {
             @page { size: A4 landscape; margin: 0; }

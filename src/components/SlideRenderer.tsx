@@ -1,13 +1,18 @@
 'use client';
 
+import { useRef } from 'react';
 import { Proposal, ProposalSlide, SlideBlock, THEMES, themeForSymptom, PlanSet } from '@/lib/types';
 
 interface Props {
   proposal: Proposal;
   planSets?: PlanSet[];
+  editable?: boolean;
+  onSlideChange?: (slideNo: number, updated: ProposalSlide) => void;
 }
 
-export default function SlideRenderer({ proposal, planSets = [] }: Props) {
+type Theme = (typeof THEMES)[keyof typeof THEMES];
+
+export default function SlideRenderer({ proposal, planSets = [], editable = false, onSlideChange }: Props) {
   const themeKey = proposal.themeKey || themeForSymptom(proposal.symptomCategory);
   const theme = THEMES[themeKey];
   const slides = proposal.slides || [];
@@ -18,11 +23,18 @@ export default function SlideRenderer({ proposal, planSets = [] }: Props) {
       {slides.map((slide) => (
         <div
           key={slide.no}
-          className={`relative bg-white border-2 ${theme.borderColor} rounded-xl shadow-sm overflow-hidden break-after-page print:shadow-none print:rounded-none`}
+          className={`relative bg-white border ${theme.borderColor} rounded-2xl shadow-sm overflow-hidden break-after-page print:shadow-none print:rounded-none`}
           style={{ aspectRatio: '297/210', minHeight: '210mm' }}
         >
-          <SlideContent slide={slide} theme={theme} proposal={proposal} planSet={planSet} />
-          <div className={`absolute bottom-3 right-4 text-xs ${theme.primaryText} opacity-60`}>
+          <SlideContent
+            slide={slide}
+            theme={theme}
+            proposal={proposal}
+            planSet={planSet}
+            editable={editable}
+            onChange={(updated) => onSlideChange?.(slide.no, updated)}
+          />
+          <div className={`absolute bottom-3 right-4 text-[10px] tracking-widest text-slate-400`}>
             {slide.no}/{slides.length} ｜ 大口神経整体院
           </div>
         </div>
@@ -36,27 +48,31 @@ function SlideContent({
   theme,
   proposal,
   planSet,
+  editable,
+  onChange,
 }: {
   slide: ProposalSlide;
-  theme: ReturnType<typeof getTheme>;
+  theme: Theme;
   proposal: Proposal;
   planSet?: PlanSet;
+  editable: boolean;
+  onChange: (updated: ProposalSlide) => void;
 }) {
   switch (slide.layout) {
     case 'cover':
-      return <CoverLayout slide={slide} theme={theme} proposal={proposal} />;
+      return <CoverLayout slide={slide} theme={theme} proposal={proposal} editable={editable} onChange={onChange} />;
     case 'overview':
-      return <OverviewLayout slide={slide} theme={theme} />;
+      return <OverviewLayout slide={slide} theme={theme} editable={editable} onChange={onChange} />;
     case 'iceberg':
       return <IcebergLayout slide={slide} theme={theme} />;
     case 'mechanism3':
-      return <ThreeColumnLayout slide={slide} theme={theme} accent />;
+      return <ThreeColumnLayout slide={slide} theme={theme} />;
     case 'risks-grid':
       return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="warning" />;
     case 'positives':
       return <PositivesLayout slide={slide} theme={theme} />;
     case 'policy-3':
-      return <ThreeColumnLayout slide={slide} theme={theme} accent showSubtitle />;
+      return <ThreeColumnLayout slide={slide} theme={theme} showSubtitle />;
     case 'approach-4':
       return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="approach" />;
     case 'changes-list':
@@ -76,47 +92,122 @@ function SlideContent({
 
 // ===== ヘルパー =====
 
-type Theme = (typeof THEMES)[keyof typeof THEMES];
-function getTheme(): Theme {
-  return THEMES.blue;
-}
-
 function H1({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <h1 className={`text-3xl font-bold tracking-wide ${className}`}>{children}</h1>;
+  return <h1 className={`text-3xl font-serif font-bold tracking-wide ${className}`}>{children}</h1>;
 }
 function H2({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <h2 className={`text-2xl font-bold tracking-wide ${className}`}>{children}</h2>;
+  return <h2 className={`text-2xl font-serif font-bold tracking-wide ${className}`}>{children}</h2>;
+}
+
+function ImageUploadBox({
+  current,
+  placeholder = '画像を追加',
+  onUpload,
+  className = '',
+  emojiHint,
+}: {
+  current?: string;
+  placeholder?: string;
+  onUpload: (base64: string) => void;
+  className?: string;
+  emojiHint?: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const handle = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') onUpload(reader.result);
+    };
+    reader.readAsDataURL(f);
+  };
+  return (
+    <div className={`relative ${className}`}>
+      {current ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={current} alt="" className="w-full h-full object-contain" />
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+          {emojiHint && <div className="text-5xl mb-2">{emojiHint}</div>}
+          <p className="text-xs">{placeholder}</p>
+        </div>
+      )}
+      <button
+        onClick={() => ref.current?.click()}
+        className="absolute bottom-2 right-2 px-2 py-1 text-[10px] bg-white border border-slate-300 rounded shadow-sm hover:bg-slate-50 print:hidden"
+      >
+        {current ? '差替え' : '画像追加'}
+      </button>
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handle} />
+    </div>
+  );
+}
+
+function updateBlockField(slide: ProposalSlide, idx: number, field: keyof SlideBlock, value: string): ProposalSlide {
+  const blocks = slide.blocks.map((b, i) => (i === idx ? { ...b, [field]: value } : b));
+  return { ...slide, blocks };
 }
 
 // ===== 1. 表紙 =====
 
-function CoverLayout({ slide, theme, proposal }: { slide: ProposalSlide; theme: Theme; proposal: Proposal }) {
+function CoverLayout({
+  slide,
+  theme,
+  proposal,
+  editable,
+  onChange,
+}: {
+  slide: ProposalSlide;
+  theme: Theme;
+  proposal: Proposal;
+  editable: boolean;
+  onChange: (updated: ProposalSlide) => void;
+}) {
   const find = (t: string) => slide.blocks.find((b) => b.title === t)?.body || '';
+  const findIdx = (t: string) => slide.blocks.findIndex((b) => b.title === t);
   const today = find('日付');
   const goal = find('目標');
   const complaint = find('主訴');
+  const coverImgIdx = findIdx('表紙画像');
 
   return (
-    <div className={`h-full p-12 flex flex-col justify-between ${theme.surfaceBg}`}>
+    <div className="h-full p-12 flex flex-col justify-between bg-white">
       <div>
-        <div className={`text-xs ${theme.primaryText} font-bold tracking-widest mb-2`}>大口神経整体院</div>
-        <H1 className={theme.primaryText}>{slide.title}</H1>
-        <p className="text-sm text-gray-600 mt-2">{today}</p>
+        <div className={`text-[10px] text-slate-500 tracking-[0.3em] mb-3`}>OGUCHI NEURAL INTEGRATION CLINIC</div>
+        <H1 className="text-slate-800">{slide.title}</H1>
+        <p className="text-xs text-slate-500 mt-2">{today}</p>
       </div>
-      <div className="flex-1 flex items-center justify-center">
-        <div className={`bg-white rounded-2xl shadow-sm border ${theme.borderColor} px-10 py-8 max-w-2xl text-center`}>
-          <p className="text-sm text-gray-500 mb-1">主訴</p>
-          <p className="text-lg leading-relaxed text-slate-800 mb-4">{complaint || '（主訴）'}</p>
-          {goal && <p className={`text-sm leading-relaxed ${theme.primaryText} italic`}>{goal}</p>}
-        </div>
+      <div className="flex-1 flex items-center justify-center my-4">
+        {editable || coverImgIdx >= 0 ? (
+          <div className="w-64 h-40">
+            <ImageUploadBox
+              current={slide.blocks[coverImgIdx]?.illustration}
+              placeholder="表紙メイン画像"
+              emojiHint="🌿"
+              onUpload={(b64) => {
+                if (coverImgIdx >= 0) {
+                  onChange(updateBlockField(slide, coverImgIdx, 'illustration', b64));
+                } else {
+                  onChange({ ...slide, blocks: [...slide.blocks, { title: '表紙画像', illustration: b64 }] });
+                }
+              }}
+            />
+          </div>
+        ) : null}
       </div>
-      <div className="text-right">
-        <p className="text-xs text-gray-500 mb-1">患者様</p>
-        <p className="text-2xl font-bold text-slate-800 border-b-2 border-gray-800 inline-block pb-1">
+      <div className={`bg-slate-50 border border-slate-200 rounded-xl px-8 py-5 max-w-3xl mx-auto`}>
+        <p className="text-xs text-slate-500 mb-1 font-serif">主訴</p>
+        <p className="text-base text-slate-800 leading-relaxed">{complaint || '（主訴）'}</p>
+        {goal && <p className={`text-xs italic ${theme.primaryText} mt-3 font-serif`}>{goal}</p>}
+      </div>
+      <div className="text-right mt-4">
+        <p className="text-[10px] text-slate-400 mb-1">患者様</p>
+        <p className="text-xl font-serif font-bold text-slate-800 border-b border-slate-800 inline-block pb-0.5">
           {proposal.patientName || '（患者名）'} 様
         </p>
         {proposal.patientAge && (
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             {proposal.patientAge}歳{proposal.patientGender ? ` / ${proposal.patientGender}` : ''}
           </p>
         )}
@@ -127,29 +218,55 @@ function CoverLayout({ slide, theme, proposal }: { slide: ProposalSlide; theme: 
 
 // ===== 2. お悩みと状態 =====
 
-function OverviewLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }) {
-  const symptom = slide.blocks.find((b) => b.title === '主な症状')?.body || '';
-  const bg = slide.blocks.find((b) => b.title === '背景')?.body || '';
+function OverviewLayout({
+  slide,
+  theme,
+  editable,
+  onChange,
+}: {
+  slide: ProposalSlide;
+  theme: Theme;
+  editable: boolean;
+  onChange: (updated: ProposalSlide) => void;
+}) {
+  const symptomIdx = slide.blocks.findIndex((b) => b.title === '主な症状');
+  const bgIdx = slide.blocks.findIndex((b) => b.title === '背景');
+  const illustIdx = slide.blocks.findIndex((b) => b.title === '体のイラスト');
+  const symptom = slide.blocks[symptomIdx]?.body || '';
+  const bg = slide.blocks[bgIdx]?.body || '';
   return (
-    <div className="h-full p-10 flex flex-col">
-      <H2 className={`${theme.primaryText} border-b-2 pb-2 mb-6 ${theme.borderColor}`}>{slide.title}</H2>
+    <div className="h-full p-10 flex flex-col bg-white">
+      <H2 className="text-slate-800 mb-1">{slide.title}</H2>
+      <div className={`h-px ${theme.accentBg} mb-6`} />
       <div className="grid grid-cols-2 gap-8 flex-1">
         <div className="space-y-5">
-          <div>
-            <p className={`text-sm font-bold ${theme.primaryText} mb-2`}>主な症状</p>
+          <div className={`border-l-2 ${theme.borderColor} pl-4`}>
+            <p className={`text-xs font-serif font-bold ${theme.primaryText} mb-2 tracking-wider`}>主な症状</p>
             <p className="text-sm leading-relaxed text-slate-700">{symptom}</p>
           </div>
-          <div>
-            <p className={`text-sm font-bold ${theme.primaryText} mb-2`}>背景</p>
+          <div className={`border-l-2 ${theme.borderColor} pl-4`}>
+            <p className={`text-xs font-serif font-bold ${theme.primaryText} mb-2 tracking-wider`}>背景</p>
             <p className="text-sm leading-relaxed text-slate-700">{bg}</p>
           </div>
         </div>
-        <div className={`flex items-center justify-center border-2 border-dashed ${theme.borderColor} rounded-xl ${theme.surfaceBg}`}>
-          <div className="text-center text-gray-400">
-            <div className="text-5xl mb-2">🧍</div>
-            <p className="text-xs">体のイラスト挿入枠</p>
-            <p className="text-[10px] mt-1 text-gray-300">（次バージョンで画像アップロード対応）</p>
-          </div>
+        <div className={`relative ${theme.surfaceBg} rounded-2xl flex items-center justify-center overflow-hidden`}>
+          {editable || illustIdx >= 0 ? (
+            <ImageUploadBox
+              current={slide.blocks[illustIdx]?.illustration}
+              placeholder="体のイラスト挿入枠"
+              emojiHint="🧍"
+              onUpload={(b64) => {
+                if (illustIdx >= 0) onChange(updateBlockField(slide, illustIdx, 'illustration', b64));
+                else onChange({ ...slide, blocks: [...slide.blocks, { title: '体のイラスト', illustration: b64 }] });
+              }}
+              className="w-full h-full"
+            />
+          ) : (
+            <div className="text-center text-slate-300">
+              <div className="text-5xl mb-2">🧍</div>
+              <p className="text-xs">体のイラスト</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -163,25 +280,27 @@ function IcebergLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme })
   const cause = slide.blocks[1];
   const note = slide.blocks[2];
   return (
-    <div className="h-full p-10 flex flex-col">
-      <H2 className={`${theme.primaryText} mb-2`}>{slide.title}</H2>
-      {slide.subtitle && <p className="text-sm text-gray-500 mb-6">{slide.subtitle}</p>}
-      <div className="flex-1 grid grid-cols-2 gap-6">
-        <div className={`bg-white border-2 ${theme.borderColor} rounded-xl p-6 flex flex-col items-center justify-center`}>
-          <div className="text-4xl mb-2">{result?.icon || '💢'}</div>
-          <div className={`text-5xl font-bold ${theme.primaryText} mb-2`}>30%</div>
-          <p className="text-sm font-bold text-slate-800">{result?.title}</p>
-          <p className="text-xs text-gray-600 text-center mt-1">{result?.body}</p>
+    <div className="h-full p-10 flex flex-col bg-white">
+      <H2 className="text-slate-800">{slide.title}</H2>
+      {slide.subtitle && <p className="text-xs text-slate-500 mt-1">{slide.subtitle}</p>}
+      <div className={`h-px ${theme.accentBg} my-4`} />
+      <div className="flex-1 grid grid-cols-5 gap-4 items-stretch">
+        <div className="col-span-2 bg-white border border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center">
+          <div className={`text-3xl font-serif font-bold ${theme.primaryText} mb-2`}>30%</div>
+          <p className="text-sm font-serif font-bold text-slate-800 mb-2">{result?.title}</p>
+          <p className="text-xs text-slate-600 text-center">{result?.body}</p>
         </div>
-        <div className={`${theme.primaryBg} text-white rounded-xl p-6 flex flex-col items-center justify-center`}>
-          <div className="text-4xl mb-2">{cause?.icon || '🧠'}</div>
-          <div className="text-5xl font-bold mb-2">70%</div>
-          <p className="text-sm font-bold">{cause?.title}</p>
-          <p className="text-xs text-center mt-1 opacity-90 leading-relaxed">{cause?.body}</p>
+        <div className="flex items-center justify-center">
+          <div className="text-slate-300 text-3xl">＝</div>
+        </div>
+        <div className={`col-span-2 ${theme.primaryBg} text-white rounded-2xl p-6 flex flex-col items-center justify-center`}>
+          <div className="text-3xl font-serif font-bold mb-2">70%</div>
+          <p className="text-sm font-serif font-bold mb-2">{cause?.title}</p>
+          <p className="text-xs text-center opacity-90 leading-relaxed">{cause?.body}</p>
         </div>
       </div>
       {note?.body && (
-        <p className={`text-sm text-center mt-4 italic ${theme.primaryText}`}>{note.body}</p>
+        <p className={`text-xs text-center mt-4 italic text-slate-600 max-w-2xl mx-auto`}>{note.body}</p>
       )}
     </div>
   );
@@ -192,28 +311,26 @@ function IcebergLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme })
 function ThreeColumnLayout({
   slide,
   theme,
-  accent = false,
   showSubtitle = false,
 }: {
   slide: ProposalSlide;
   theme: Theme;
-  accent?: boolean;
   showSubtitle?: boolean;
 }) {
   return (
-    <div className="h-full p-10 flex flex-col">
-      <H2 className={`${theme.primaryText} mb-2`}>{slide.title}</H2>
-      {slide.subtitle && <p className="text-sm text-gray-500 mb-6">{slide.subtitle}</p>}
+    <div className="h-full p-10 flex flex-col bg-white">
+      <H2 className="text-slate-800">{slide.title}</H2>
+      {slide.subtitle && <p className="text-xs text-slate-500 mt-1">{slide.subtitle}</p>}
+      <div className={`h-px ${theme.accentBg} my-4`} />
       <div className="flex-1 grid grid-cols-3 gap-4">
         {slide.blocks.slice(0, 3).map((b, i) => (
-          <div key={i} className={`rounded-xl p-5 flex flex-col items-center text-center border-2 ${accent ? theme.borderColor : 'border-gray-200'} ${accent ? theme.surfaceBg : 'bg-white'}`}>
-            <div className="text-4xl mb-3">{b.icon || '✦'}</div>
-            <div className={`text-xs font-bold tracking-widest mb-2 ${theme.primaryText}`}>第{i + 1}段階</div>
-            <p className="text-base font-bold text-slate-800 mb-1">{b.title}</p>
+          <div key={i} className={`rounded-2xl p-6 flex flex-col items-center text-center border ${theme.borderColor} ${theme.surfaceBg}`}>
+            <div className={`text-[10px] tracking-widest ${theme.primaryText} mb-3`}>STEP {i + 1}</div>
+            <p className="text-base font-serif font-bold text-slate-800 mb-2">{b.title}</p>
             {showSubtitle && b.subtitle && (
               <p className={`text-xs ${theme.primaryText} mb-2`}>{b.subtitle}</p>
             )}
-            <p className="text-xs text-gray-600 leading-relaxed mt-1">{b.body}</p>
+            <p className="text-xs text-slate-600 leading-relaxed">{b.body}</p>
           </div>
         ))}
       </div>
@@ -234,18 +351,18 @@ function GridLayout({
   cols: 2 | 3;
   headerStyle: 'warning' | 'approach' | 'selfcare';
 }) {
-  const titleAccent =
-    headerStyle === 'warning' ? 'bg-red-50 text-red-700 border-red-200'
-      : headerStyle === 'approach' ? `${theme.surfaceBg} ${theme.primaryText} ${theme.borderColor}`
-      : `${theme.surfaceBg} ${theme.primaryText} ${theme.borderColor}`;
+  const accentClass =
+    headerStyle === 'warning'
+      ? 'text-rose-600 border-rose-200 bg-rose-50'
+      : `${theme.primaryText} ${theme.borderColor} ${theme.surfaceBg}`;
   return (
-    <div className="h-full p-10 flex flex-col">
-      <H2 className={`${theme.primaryText} mb-6`}>{slide.title}</H2>
+    <div className="h-full p-10 flex flex-col bg-white">
+      <H2 className="text-slate-800">{slide.title}</H2>
+      <div className={`h-px ${theme.accentBg} my-4`} />
       <div className={`flex-1 grid gap-4 ${cols === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
         {slide.blocks.slice(0, cols === 2 ? 4 : 6).map((b, i) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-xl p-5">
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${titleAccent} text-xs font-bold mb-3`}>
-              <span>{b.icon || '✦'}</span>
+          <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${accentClass} text-[10px] font-serif font-bold mb-3 self-start`}>
               <span>{b.title}</span>
             </div>
             <p className="text-sm text-slate-700 leading-relaxed">{b.body}</p>
@@ -262,19 +379,16 @@ function PositivesLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme 
   const fact = slide.blocks[0];
   const conclusion = slide.blocks[1];
   return (
-    <div className="h-full p-10 flex flex-col">
-      <H2 className={`${theme.primaryText} mb-6`}>{slide.title}</H2>
-      <div className="flex-1 flex flex-col gap-5 justify-center">
-        <div className={`${theme.surfaceBg} border-2 ${theme.borderColor} rounded-xl p-6`}>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-2xl">{fact?.icon || '✨'}</span>
-            <p className={`text-sm font-bold ${theme.primaryText}`}>{fact?.title}</p>
-          </div>
+    <div className="h-full p-10 flex flex-col bg-white">
+      <H2 className="text-slate-800">{slide.title}</H2>
+      <div className={`h-px ${theme.accentBg} my-4`} />
+      <div className="flex-1 flex flex-col gap-5 justify-center max-w-3xl mx-auto w-full">
+        <div className={`${theme.surfaceBg} border ${theme.borderColor} rounded-2xl p-6`}>
+          <p className={`text-xs font-serif font-bold ${theme.primaryText} mb-3 tracking-wider`}>{fact?.title}</p>
           <p className="text-sm leading-relaxed text-slate-700">{fact?.body}</p>
         </div>
-        <div className={`${theme.primaryBg} text-white rounded-xl p-6 text-center`}>
-          <span className="text-2xl mr-2">{conclusion?.icon || '🌱'}</span>
-          <span className="text-base font-bold">{conclusion?.body}</span>
+        <div className={`${theme.primaryBg} text-white rounded-2xl p-6 text-center`}>
+          <p className="text-base font-serif font-bold">{conclusion?.body}</p>
         </div>
       </div>
     </div>
@@ -285,15 +399,16 @@ function PositivesLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme 
 
 function ChangesListLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }) {
   return (
-    <div className="h-full p-10 flex flex-col">
-      <H2 className={`${theme.primaryText} mb-8`}>{slide.title}</H2>
-      <div className="flex-1 flex flex-col justify-center gap-3">
+    <div className="h-full p-10 flex flex-col bg-white">
+      <H2 className="text-slate-800">{slide.title}</H2>
+      <div className={`h-px ${theme.accentBg} my-4`} />
+      <div className="flex-1 flex flex-col justify-center gap-4 max-w-3xl mx-auto w-full">
         {slide.blocks.map((b, i) => (
-          <div key={i} className="flex items-start gap-3">
-            <span className={`shrink-0 w-8 h-8 rounded-full ${theme.primaryBg} text-white flex items-center justify-center text-sm font-bold`}>
+          <div key={i} className={`flex items-start gap-4 border-b ${theme.borderColor} pb-3`}>
+            <span className={`shrink-0 w-9 h-9 rounded-full ${theme.primaryBg} text-white flex items-center justify-center text-sm font-serif`}>
               {['❶', '❷', '❸', '❹', '❺'][i] || '◯'}
             </span>
-            <p className="text-base text-slate-800 leading-relaxed pt-1">{b.body}</p>
+            <p className="text-base text-slate-800 leading-relaxed pt-1.5 font-serif">{b.body}</p>
           </div>
         ))}
       </div>
@@ -307,25 +422,31 @@ function ScheduleLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }
   const stages = slide.blocks.slice(0, 3);
   const positive = slide.blocks[3];
   return (
-    <div className="h-full p-10 flex flex-col">
-      <H2 className={`${theme.primaryText} mb-6`}>{slide.title}</H2>
+    <div className="h-full p-10 flex flex-col bg-white">
+      <H2 className="text-slate-800">{slide.title}</H2>
+      <div className={`h-px ${theme.accentBg} my-4`} />
       <div className="flex-1 flex flex-col gap-3">
-        {stages.map((s, i) => (
-          <div key={i} className={`flex items-stretch border-2 ${theme.borderColor} rounded-xl overflow-hidden`}>
-            <div className={`${theme.primaryBg} text-white px-5 py-4 flex items-center min-w-[160px]`}>
-              <p className="text-sm font-bold">{s.title?.replace(/（[^）]+）/, '')}</p>
+        {stages.map((s, i) => {
+          const stageLabel = s.title?.replace(/（[^）]+）/, '');
+          const period = s.title?.match(/（([^）]+)）/)?.[1];
+          return (
+            <div key={i} className={`flex items-stretch border ${theme.borderColor} rounded-2xl overflow-hidden bg-white`}>
+              <div className={`${theme.primaryBg} text-white px-6 py-5 flex flex-col justify-center min-w-[180px]`}>
+                <p className="text-[10px] tracking-widest mb-1 opacity-80">PHASE {i + 1}</p>
+                <p className="text-sm font-serif font-bold">{stageLabel}</p>
+              </div>
+              <div className="flex-1 px-5 py-4 flex items-center">
+                <p className="text-sm text-slate-700 leading-relaxed">{s.body}</p>
+              </div>
+              <div className={`${theme.surfaceBg} px-5 py-4 flex items-center min-w-[140px] border-l ${theme.borderColor}`}>
+                <p className={`text-xs font-serif ${theme.primaryText}`}>{period}</p>
+              </div>
             </div>
-            <div className="flex-1 bg-white px-5 py-4 flex items-center">
-              <p className="text-sm text-slate-700 leading-relaxed">{s.body}</p>
-            </div>
-            <div className={`${theme.surfaceBg} px-5 py-4 flex items-center min-w-[140px]`}>
-              <p className={`text-xs ${theme.primaryText} font-bold`}>{s.title?.match(/（([^）]+)）/)?.[1]}</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {positive?.body && (
-          <div className={`mt-2 ${theme.surfaceBg} rounded-lg p-3`}>
-            <p className={`text-xs ${theme.primaryText} leading-relaxed`}>{positive.body}</p>
+          <div className={`mt-2 ${theme.surfaceBg} rounded-xl p-4`}>
+            <p className={`text-xs italic ${theme.primaryText} leading-relaxed font-serif`}>{positive.body}</p>
           </div>
         )}
       </div>
@@ -337,21 +458,22 @@ function ScheduleLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }
 
 function PlanLayout({ slide, theme, planSet }: { slide: ProposalSlide; theme: Theme; planSet?: PlanSet }) {
   return (
-    <div className="h-full p-10 flex flex-col">
-      <H2 className={`${theme.primaryText} mb-6`}>{slide.title}</H2>
+    <div className="h-full p-10 flex flex-col bg-white">
+      <H2 className="text-slate-800">{slide.title}</H2>
+      <div className={`h-px ${theme.accentBg} my-4`} />
       {planSet ? (
         <div className="flex-1 grid grid-cols-3 gap-4">
           {planSet.plans.map((p) => (
-            <div key={p.id} className={`rounded-xl p-5 flex flex-col border-2 ${p.isRecommended ? theme.borderColor + ' ' + theme.surfaceBg : 'border-gray-200 bg-white'}`}>
+            <div key={p.id} className={`rounded-2xl p-5 flex flex-col border ${p.isRecommended ? theme.borderColor + ' ' + theme.surfaceBg : 'border-slate-200 bg-white'}`}>
               <div className="flex items-center gap-2 mb-2">
-                <p className="font-bold text-base text-slate-800">{p.name}</p>
+                <p className="font-serif font-bold text-base text-slate-800">{p.name}</p>
                 {p.isRecommended && <span className={`text-[10px] ${theme.primaryBg} text-white px-2 py-0.5 rounded-full`}>おすすめ</span>}
               </div>
-              {p.label && <p className="text-xs text-gray-500 mb-3">{p.label}</p>}
-              <p className={`text-2xl font-bold ${theme.primaryText} mb-3`}>{p.totalPrice.toLocaleString('ja-JP')}円</p>
-              <ul className="text-xs text-gray-700 space-y-1 mt-auto">
+              {p.label && <p className="text-[11px] text-slate-500 mb-3">{p.label}</p>}
+              <p className={`text-2xl font-serif font-bold ${theme.primaryText} mb-3`}>{p.totalPrice.toLocaleString('ja-JP')}円</p>
+              <ul className="text-xs text-slate-700 space-y-1 mt-auto">
                 {p.items.map((it, i) => (
-                  <li key={i}>✓ {it.menuItemName}（{it.quantity}{it.unit}）</li>
+                  <li key={i}>＋ {it.menuItemName}（{it.quantity}{it.unit}）</li>
                 ))}
               </ul>
             </div>
@@ -360,8 +482,8 @@ function PlanLayout({ slide, theme, planSet }: { slide: ProposalSlide; theme: Th
       ) : (
         <div className="flex-1 flex items-center justify-center text-center">
           <div>
-            <p className="text-gray-500 mb-2">{slide.blocks[0]?.body}</p>
-            <p className="text-xs text-gray-400">プランビルダータブで松竹梅プランを作成し、編集画面で紐付けてください。</p>
+            <p className="text-sm text-slate-500 mb-2">{slide.blocks[0]?.body}</p>
+            <p className="text-xs text-slate-400">プランビルダータブで松竹梅プランを作成し、編集画面で紐付けてください。</p>
           </div>
         </div>
       )}
@@ -373,11 +495,11 @@ function PlanLayout({ slide, theme, planSet }: { slide: ProposalSlide; theme: Th
 
 function ClosingLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }) {
   return (
-    <div className={`h-full p-10 flex flex-col items-center justify-center ${theme.surfaceBg}`}>
-      <div className="text-6xl mb-6">🌿</div>
-      <H1 className={`${theme.primaryText} text-center mb-3`}>{slide.title}</H1>
-      {slide.subtitle && <p className="text-sm text-gray-600">{slide.subtitle}</p>}
-      <p className="text-sm text-slate-700 leading-relaxed mt-8 max-w-xl text-center">
+    <div className={`h-full p-12 flex flex-col items-center justify-center bg-white`}>
+      <div className={`text-5xl mb-6 ${theme.primaryText}`}>—</div>
+      <H1 className="text-slate-800 text-center mb-3">{slide.title}</H1>
+      {slide.subtitle && <p className={`text-xs ${theme.primaryText} tracking-widest font-serif`}>{slide.subtitle}</p>}
+      <p className="text-sm text-slate-600 leading-relaxed mt-8 max-w-xl text-center font-serif">
         {slide.blocks[0]?.body}
       </p>
     </div>
@@ -388,13 +510,14 @@ function ClosingLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme })
 
 function DefaultLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }) {
   return (
-    <div className="h-full p-10">
-      <H2 className={`${theme.primaryText} mb-4`}>{slide.title}</H2>
-      {slide.subtitle && <p className="text-sm text-gray-500 mb-6">{slide.subtitle}</p>}
+    <div className="h-full p-10 bg-white">
+      <H2 className="text-slate-800">{slide.title}</H2>
+      {slide.subtitle && <p className="text-xs text-slate-500 mt-1">{slide.subtitle}</p>}
+      <div className={`h-px ${theme.accentBg} my-4`} />
       <div className="space-y-3">
         {slide.blocks.map((b: SlideBlock, i: number) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-lg p-4">
-            {b.title && <p className="font-bold text-sm text-slate-800 mb-1">{b.title}</p>}
+          <div key={i} className="bg-white border border-slate-200 rounded-2xl p-4">
+            {b.title && <p className="font-serif font-bold text-sm text-slate-800 mb-1">{b.title}</p>}
             <p className="text-sm text-slate-700 whitespace-pre-line">{b.body}</p>
           </div>
         ))}
