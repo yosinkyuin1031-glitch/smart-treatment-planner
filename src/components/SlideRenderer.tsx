@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { Proposal, ProposalSlide, SlideBlock, THEMES, themeForSymptom, PlanSet } from '@/lib/types';
-import { IconBrain, IconNerve, IconHeart, IconBowl, IconWalk, IconLeaf, IconMoon, IconAlert, IconPill, IconStretch, IconSpine, IconWatercolorAccent, SYMPTOM_ICONS } from './SlideIcons';
+import { IconWatercolorAccent } from './SlideIcons';
 
 interface Props {
   proposal: Proposal;
@@ -19,7 +19,6 @@ export default function SlideRenderer({ proposal, planSets = [], editable = fals
   const slides = proposal.slides || [];
   const planSet = planSets.find((ps) => ps.id === proposal.planSetId);
 
-  const SymptomIcon = SYMPTOM_ICONS[proposal.symptomCategory] || IconLeaf;
   // 配色テーマに対応した水彩色
   const watercolorPalette: Record<string, string> = {
     blue: '#dbeafe', purple: '#ede9fe', orange: '#ffedd5', pink: '#fce7f3', green: '#dcfce7', gray: '#e2e8f0',
@@ -43,7 +42,6 @@ export default function SlideRenderer({ proposal, planSets = [], editable = fals
             proposal={proposal}
             planSet={planSet}
             editable={editable}
-            symptomIcon={SymptomIcon}
             onChange={(updated) => onSlideChange?.(slide.no, updated)}
           />
           <div className={`absolute bottom-4 left-6 text-[10px] tracking-[0.3em] text-slate-400 uppercase`}>
@@ -64,7 +62,6 @@ function SlideContent({
   proposal,
   planSet,
   editable,
-  symptomIcon,
   onChange,
 }: {
   slide: ProposalSlide;
@@ -72,32 +69,31 @@ function SlideContent({
   proposal: Proposal;
   planSet?: PlanSet;
   editable: boolean;
-  symptomIcon: React.FC<{ className?: string; size?: number }>;
   onChange: (updated: ProposalSlide) => void;
 }) {
   switch (slide.layout) {
     case 'cover':
-      return <CoverLayout slide={slide} theme={theme} proposal={proposal} symptomIcon={symptomIcon} editable={editable} onChange={onChange} />;
+      return <CoverLayout slide={slide} theme={theme} proposal={proposal} editable={editable} onChange={onChange} />;
     case 'overview':
       return <OverviewLayout slide={slide} theme={theme} editable={editable} onChange={onChange} />;
     case 'iceberg':
       return <IcebergLayout slide={slide} theme={theme} />;
     case 'mechanism3':
-      return <ThreeColumnLayout slide={slide} theme={theme} icons={[IconStretch, IconHeart, IconNerve]} />;
+      return <ThreeColumnLayout slide={slide} theme={theme} />;
     case 'risks-grid':
-      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="warning" icons={[IconAlert, IconAlert, IconAlert, IconAlert]} />;
+      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="warning" />;
     case 'positives':
       return <PositivesLayout slide={slide} theme={theme} />;
     case 'policy-3':
-      return <ThreeColumnLayout slide={slide} theme={theme} showSubtitle icons={[IconSpine, IconBrain, IconWalk]} />;
+      return <ThreeColumnLayout slide={slide} theme={theme} showSubtitle />;
     case 'approach-4':
-      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="approach" icons={[IconNerve, IconBrain, IconBowl, IconWalk]} />;
+      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="approach" />;
     case 'changes-list':
       return <ChangesListLayout slide={slide} theme={theme} />;
     case 'schedule':
       return <ScheduleLayout slide={slide} theme={theme} />;
     case 'selfcare-4':
-      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="selfcare" icons={[IconStretch, IconWalk, IconMoon, IconPill]} />;
+      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="selfcare" />;
     case 'plan-3':
       return <PlanLayout slide={slide} theme={theme} planSet={planSet} />;
     case 'closing':
@@ -172,14 +168,12 @@ function CoverLayout({
   slide,
   theme,
   proposal,
-  symptomIcon: SymptomIcon,
   editable,
   onChange,
 }: {
   slide: ProposalSlide;
   theme: Theme;
   proposal: Proposal;
-  symptomIcon: React.FC<{ className?: string; size?: number }>;
   editable: boolean;
   onChange: (updated: ProposalSlide) => void;
 }) {
@@ -192,12 +186,9 @@ function CoverLayout({
 
   return (
     <div className="relative h-full p-14 flex flex-col bg-white z-10">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className={`text-[10px] tracking-[0.4em] mb-3 ${theme.primaryText}`}>初回施術 ご提案書</div>
-          <p className="text-[10px] text-slate-400 tracking-wider">{today}</p>
-        </div>
-        <div className={`${theme.primaryText} opacity-50`}><SymptomIcon size={36} /></div>
+      <div className="text-center">
+        <div className={`text-[10px] tracking-[0.4em] mb-3 ${theme.primaryText}`}>初回施術 ご提案書</div>
+        <p className="text-[10px] text-slate-400 tracking-wider">{today}</p>
       </div>
 
       <div className="flex-1 flex flex-col justify-center items-center text-center px-8">
@@ -338,12 +329,10 @@ function ThreeColumnLayout({
   slide,
   theme,
   showSubtitle = false,
-  icons,
 }: {
   slide: ProposalSlide;
   theme: Theme;
   showSubtitle?: boolean;
-  icons?: React.FC<{ className?: string; size?: number }>[];
 }) {
   return (
     <div className="relative h-full p-10 flex flex-col bg-white z-10">
@@ -351,24 +340,16 @@ function ThreeColumnLayout({
       {slide.subtitle && <p className="text-xs text-slate-500 mt-1">{slide.subtitle}</p>}
       <div className={`h-px ${theme.accentBg} my-4`} />
       <div className="flex-1 grid grid-cols-3 gap-5">
-        {slide.blocks.slice(0, 3).map((b, i) => {
-          const Icon = icons?.[i];
-          return (
-            <div key={i} className={`rounded-2xl p-7 flex flex-col items-center text-center border ${theme.borderColor} bg-white/80 backdrop-blur-sm`}>
-              {Icon && (
-                <div className={`${theme.primaryText} mb-4 opacity-90`}>
-                  <Icon size={36} />
-                </div>
-              )}
-              <div className={`text-[10px] tracking-[0.3em] ${theme.primaryText} mb-3`}>STEP {String(i + 1).padStart(2, '0')}</div>
-              <p className="text-base font-serif font-bold text-slate-800 mb-2">{b.title}</p>
-              {showSubtitle && b.subtitle && (
-                <p className={`text-xs ${theme.primaryText} mb-2 font-serif`}>{b.subtitle}</p>
-              )}
-              <p className="text-xs text-slate-600 leading-relaxed">{b.body}</p>
-            </div>
-          );
-        })}
+        {slide.blocks.slice(0, 3).map((b, i) => (
+          <div key={i} className={`rounded-2xl p-7 flex flex-col text-center border ${theme.borderColor} bg-white/80 backdrop-blur-sm justify-center`}>
+            <div className={`text-[10px] tracking-[0.3em] ${theme.primaryText} mb-3`}>STEP {String(i + 1).padStart(2, '0')}</div>
+            <p className="text-base font-serif font-bold text-slate-800 mb-2">{b.title}</p>
+            {showSubtitle && b.subtitle && (
+              <p className={`text-xs ${theme.primaryText} mb-2 font-serif`}>{b.subtitle}</p>
+            )}
+            <p className="text-xs text-slate-600 leading-relaxed">{b.body}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -381,35 +362,28 @@ function GridLayout({
   theme,
   cols,
   headerStyle,
-  icons,
 }: {
   slide: ProposalSlide;
   theme: Theme;
   cols: 2 | 3;
   headerStyle: 'warning' | 'approach' | 'selfcare';
-  icons?: React.FC<{ className?: string; size?: number }>[];
 }) {
-  const iconColor =
-    headerStyle === 'warning'
-      ? 'text-rose-500'
-      : theme.primaryText;
+  const accentBar =
+    headerStyle === 'warning' ? 'bg-rose-300' : theme.accentBg;
   return (
     <div className="relative h-full p-10 flex flex-col bg-white z-10">
       <H2 className="text-slate-800">{slide.title}</H2>
       <div className={`h-px ${theme.accentBg} my-4`} />
       <div className={`flex-1 grid gap-5 ${cols === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-        {slide.blocks.slice(0, cols === 2 ? 4 : 6).map((b, i) => {
-          const Icon = icons?.[i];
-          return (
-            <div key={i} className="bg-white/80 backdrop-blur-sm border border-slate-200 rounded-2xl p-6 flex flex-col">
-              <div className="flex items-center gap-3 mb-3">
-                {Icon && <div className={`${iconColor} opacity-80`}><Icon size={26} /></div>}
-                <p className="text-sm font-serif font-bold text-slate-800 leading-tight">{b.title}</p>
-              </div>
-              <p className="text-sm text-slate-700 leading-relaxed">{b.body}</p>
+        {slide.blocks.slice(0, cols === 2 ? 4 : 6).map((b, i) => (
+          <div key={i} className="bg-white/80 backdrop-blur-sm border border-slate-200 rounded-2xl p-6 flex flex-col">
+            <div className="flex items-center gap-3 mb-3">
+              <span className={`inline-block w-1 h-5 rounded-full ${accentBar}`} />
+              <p className="text-sm font-serif font-bold text-slate-800 leading-tight">{b.title}</p>
             </div>
-          );
-        })}
+            <p className="text-sm text-slate-700 leading-relaxed">{b.body}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
