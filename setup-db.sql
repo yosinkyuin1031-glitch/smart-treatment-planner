@@ -68,9 +68,15 @@ CREATE TABLE IF NOT EXISTS mp_proposals (
   special_notes TEXT NOT NULL DEFAULT '',
   plan_set_id UUID REFERENCES mp_plan_sets(id) ON DELETE SET NULL,
   sections JSONB NOT NULL DEFAULT '[]',
+  slides JSONB NOT NULL DEFAULT '[]',
+  theme_key TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 既存DB向けマイグレーション
+ALTER TABLE mp_proposals ADD COLUMN IF NOT EXISTS slides JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE mp_proposals ADD COLUMN IF NOT EXISTS theme_key TEXT;
 
 -- =============================================
 -- インデックス

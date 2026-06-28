@@ -548,6 +548,8 @@ function mapProposalRow(row: Record<string, unknown>): Proposal {
     specialNotes: (row.special_notes as string) || '',
     planSetId: (row.plan_set_id as string) || undefined,
     sections: (row.sections as ProposalSection[]) || [],
+    slides: (row.slides as Proposal['slides']) || [],
+    themeKey: (row.theme_key as Proposal['themeKey']) || undefined,
     createdAt: (row.created_at as string) || new Date().toISOString(),
     updatedAt: (row.updated_at as string) || new Date().toISOString(),
   };
@@ -604,6 +606,8 @@ export async function saveProposalToDB(p: Proposal): Promise<Proposal> {
     special_notes: p.specialNotes || '',
     plan_set_id: p.planSetId || null,
     sections: p.sections,
+    slides: p.slides || [],
+    theme_key: p.themeKey || null,
     updated_at: now,
   };
   const isNew = !p.id || p.id.startsWith('local-');

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
-import { Proposal, SymptomCategory, Severity, Gender, SYMPTOM_CATEGORIES, SEVERITIES, PlanSet, MenuItem } from '@/lib/types';
-import { generateProposalSections, buildProposalFromInput } from '@/lib/proposalPresets';
+import { Proposal, SymptomCategory, Severity, Gender, SYMPTOM_CATEGORIES, SEVERITIES, PlanSet, MenuItem, ProposalSlide, themeForSymptom } from '@/lib/types';
+import { generateProposalSections, generateProposalSlides, buildProposalFromInput } from '@/lib/proposalPresets';
+import SlideRenderer from './SlideRenderer';
 
 type Mode = 'list' | 'edit' | 'preview';
 
@@ -27,6 +28,8 @@ function emptyProposal(): Proposal {
     specialNotes: '',
     planSetId: undefined,
     sections: [],
+    slides: [],
+    themeKey: 'blue',
     createdAt: now,
     updatedAt: now,
   };
@@ -86,7 +89,21 @@ export default function ProposalManager({ proposals, planSets, menuItems, onSave
           observation: draft.observation,
           specialNotes: draft.specialNotes,
         });
-    const toSave: Proposal = { ...draft, sections, updatedAt: new Date().toISOString() };
+    const slides = draft.slides && draft.slides.length > 0
+      ? draft.slides
+      : generateProposalSlides({
+          patientName: draft.patientName,
+          patientAge: draft.patientAge,
+          patientGender: draft.patientGender,
+          symptomCategory: draft.symptomCategory,
+          severity: draft.severity,
+          chiefComplaint: draft.chiefComplaint,
+          background: draft.background,
+          observation: draft.observation,
+          specialNotes: draft.specialNotes,
+        });
+    const themeKey = draft.themeKey || themeForSymptom(draft.symptomCategory);
+    const toSave: Proposal = { ...draft, sections, slides, themeKey, updatedAt: new Date().toISOString() };
     try {
       await onSave(toSave);
       showToast('提案書を保存しました', 'success');
@@ -127,7 +144,18 @@ export default function ProposalManager({ proposals, planSets, menuItems, onSave
             observation: draft.observation,
             specialNotes: draft.specialNotes,
           });
-          setDraft({ ...draft, sections });
+          const slides = generateProposalSlides({
+            patientName: draft.patientName,
+            patientAge: draft.patientAge,
+            patientGender: draft.patientGender,
+            symptomCategory: draft.symptomCategory,
+            severity: draft.severity,
+            chiefComplaint: draft.chiefComplaint,
+            background: draft.background,
+            observation: draft.observation,
+            specialNotes: draft.specialNotes,
+          });
+          setDraft({ ...draft, sections, slides, themeKey: draft.themeKey || themeForSymptom(draft.symptomCategory) });
           setMode('preview');
         }}
       />
@@ -417,6 +445,30 @@ function ProposalPreview({
   onPrint: () => void;
 }) {
   const planSet = useMemo(() => planSets.find((ps) => ps.id === proposal.planSetId), [planSets, proposal.planSetId]);
+  const useSlides = proposal.slides && proposal.slides.length > 0;
+
+  if (useSlides) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-4 print:hidden">
+          <button onClick={onBack} className="text-sm text-gray-600 hover:text-gray-800">&larr; 戻る</button>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">{proposal.slides!.length}枚のスライド形式</span>
+            <button onClick={onPrint} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition">
+              印刷／PDF出力
+            </button>
+          </div>
+        </div>
+        <SlideRenderer proposal={proposal} planSets={planSets} />
+        <style jsx global>{`
+          @media print {
+            @page { size: A4 landscape; margin: 0; }
+            body { background: white; }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div>

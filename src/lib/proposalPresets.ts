@@ -1,4 +1,4 @@
-import { ProposalSection, SymptomCategory, Severity, Proposal } from './types';
+import { ProposalSection, SymptomCategory, Severity, Proposal, ProposalSlide } from './types';
 
 // ====== 症状別×重症度プリセット ======
 
@@ -347,3 +347,188 @@ export function buildProposalFromInput(args: {
     sections: generateProposalSections(args),
   };
 }
+
+// ====== 13スライド静的生成（フォールバック） ======
+
+export function generateProposalSlides(input: {
+  patientName: string;
+  patientAge?: number;
+  patientGender?: string;
+  symptomCategory: SymptomCategory;
+  severity: Severity;
+  chiefComplaint: string;
+  background: string;
+  observation: string;
+  specialNotes?: string;
+}): ProposalSlide[] {
+  const preset = SYMPTOM_PRESETS[input.symptomCategory] || SYMPTOM_PRESETS['その他'];
+  const today = new Date().toLocaleDateString('ja-JP');
+
+  const slides: ProposalSlide[] = [];
+
+  // 1. 表紙
+  slides.push({
+    no: 1,
+    layout: 'cover',
+    title: '初回施術 ご提案書',
+    subtitle: `${input.patientName || '患者'} 様`,
+    blocks: [
+      { title: '主訴', body: input.chiefComplaint || '（主訴を入力してください）' },
+      { title: '目標', body: '〜 痛みなく日常を過ごし、再発を防ぐために自分の体を理解してセルフケアができるようになりたい のために 〜' },
+      { title: '日付', body: today },
+    ],
+    meta: { clinic: '大口神経整体院' },
+  });
+
+  // 2. 現在のお悩みと状態
+  slides.push({
+    no: 2,
+    layout: 'overview',
+    title: '現在のお悩みと状態',
+    blocks: [
+      { title: '主な症状', body: input.chiefComplaint || preset.background },
+      { title: '背景', body: input.background || preset.background },
+      { title: '体のイラスト', body: '', illustration: '' },
+    ],
+  });
+
+  // 3. 結果と原因
+  slides.push({
+    no: 3,
+    layout: 'iceberg',
+    title: '痛みの「結果」と「原因」は違います',
+    subtitle: '水面上 30% は局所の痛み・コリ／水面下 70% が真の原因',
+    blocks: [
+      { title: '結果（30%）', body: '局所の痛み・コリ', icon: '💢' },
+      { title: '原因（70%）', body: '神経伝達・自律神経・血流不全・栄養不足・骨盤と体幹の連動', icon: '🧠' },
+      { body: '痛み止めで一時的に抑えるのではなく、水面下の「70%の原因」を整えることが大切です。' },
+    ],
+  });
+
+  // 4. 悪循環3段階
+  slides.push({
+    no: 4,
+    layout: 'mechanism3',
+    title: '体の中で起きている「悪循環」',
+    blocks: [
+      { title: '第一段階：筋肉の過剰な緊張', body: '姿勢を支えるため、筋肉が極度に固まる。', icon: '💪' },
+      { title: '第二段階：血流低下と自律神経の乱れ', body: '内臓に負荷がかかり、血流が大きく低下する。', icon: '🩸' },
+      { title: '第三段階：神経の疲弊と骨格の歪み', body: '栄養不足になった神経が症状を発信。可動域が狭まる。', icon: '⚡' },
+    ],
+  });
+
+  // 5. 放置するとどうなるか
+  slides.push({
+    no: 5,
+    layout: 'risks-grid',
+    title: 'このまま放置するとどうなるか？（今後の危険性）',
+    blocks: preset.risks.slice(0, 5).map((r, i) => ({
+      title: r.replace(/^[❶❷❸❹❺]\s*/, ''),
+      icon: ['⚠', '🦴', '📉', '❄', '🌀'][i] || '⚠',
+      body: '',
+    })),
+  });
+
+  // 6. 改善に向けた好条件
+  slides.push({
+    no: 6,
+    layout: 'positives',
+    title: '改善に向けた「非常に強力な」好条件',
+    blocks: [
+      { title: '力強い事実', body: '毎日のセルフエクササイズの継続が最も重要です。「少しずつでも動かす」という姿勢が回復を大幅に加速させます。お風呂上がりのストレッチが特に効果的です。', icon: '✨' },
+      { title: '結論', body: '正しいバランスさえ取り戻せば、劇的に改善しやすい状態です。', icon: '🌱' },
+    ],
+  });
+
+  // 7. 施術方針 3つの柱
+  slides.push({
+    no: 7,
+    layout: 'policy-3',
+    title: '当院の施術方針（3つの柱で根本から整える）',
+    subtitle: '目標：再発しない体',
+    blocks: [
+      { title: '構造', subtitle: '姿勢の調整', body: '骨盤の歪みと関節の位置を修正', icon: '🦴' },
+      { title: '機能', subtitle: '神経と血流の回復', body: '内臓と頭蓋の調整で自然治癒力を高める', icon: '🧠' },
+      { title: '行動', subtitle: '歩行・体の使い方の改善', body: '正しい動き方の再教育', icon: '🚶' },
+    ],
+  });
+
+  // 8. 具体的なアプローチ 4象限
+  slides.push({
+    no: 8,
+    layout: 'approach-4',
+    title: '具体的なアプローチ',
+    blocks: [
+      { title: '神経の調整', body: '症状の根本にある神経の過敏化を鎮め、自律神経のバランスを整えます。痛みのゲートコントロール理論を踏まえた手技で、痛みのループを断ち切ります。', icon: '⚡' },
+      { title: '頭蓋・自律神経の調整', body: '頭蓋仙骨療法により、硬膜テンションのバランスを調整。痛みによる交感神経の亢進をリセットし、自然治癒力を最大化します。', icon: '🧠' },
+      { title: '内臓の調整', body: '内臓ストレスが症状の上流にある場合、内臓の位置・動き・血流を整え、自律神経の乱れの起点を解消します。', icon: '🫁' },
+      { title: '歩行・姿勢の改善', body: '腕を振る正しい歩行を指導し、自然な可動域訓練を日常に組み込みます。【構造】【機能】【行動】の3軸で再発予防。', icon: '🚶' },
+    ],
+  });
+
+  // 9. 期待できる変化
+  slides.push({
+    no: 9,
+    layout: 'changes-list',
+    title: '施術で期待できるお体の変化',
+    blocks: preset.expectations.slice(0, 5).map((e) => ({
+      body: e.replace(/^[❶❷❸❹❺]\s*/, ''),
+      icon: '✓',
+    })),
+  });
+
+  // 10. 改善スケジュール
+  slides.push({
+    no: 10,
+    layout: 'schedule',
+    title: '改善への具体的なスケジュール',
+    blocks: [
+      { title: '寛解期（2〜3ヶ月）', body: '週2回の施術で、痛みの軽減と神経の過敏化の沈静化を最優先に行います。' },
+      { title: '治癒初期（4〜6ヶ月）', body: '週1〜2回の施術に移行し、可動域の拡大・筋力の回復・生活習慣の修正を図ります。' },
+      { title: '治癒安定期（6ヶ月以降）', body: '月2〜4回のメンテナンスに移行。再発しない体を維持します。' },
+      { body: '【回復を早めるポジティブ要素】セルフケアと生活習慣を整えれば、想定より早い段階で寛解に向かうケースが多くあります。' },
+    ],
+  });
+
+  // 11. ご自宅での取り組み
+  slides.push({
+    no: 11,
+    layout: 'selfcare-4',
+    title: '改善をさらに早める「ご自宅での取り組み」',
+    blocks: [
+      { title: '毎日のエクササイズ', body: '患部に応じたストレッチ・呼吸法を1日5分。お風呂上がりが特に効果的。', icon: '🧘' },
+      { title: '歩行習慣', body: '腕を大きく振って歩く。1日5,000〜6,000歩を目標に。', icon: '🚶' },
+      { title: '生活習慣', body: '患側を下にして寝ない。重い物を持たない。睡眠リズムを一定に。', icon: '🌙' },
+      { title: '栄養・サプリ', body: 'コラーゲンペプチド／ビタミンC／オメガ3／腸内環境サプリ等を必要に応じて。', icon: '💊' },
+    ],
+  });
+
+  // 12. プラン提案
+  slides.push({
+    no: 12,
+    layout: 'plan-3',
+    title: `${input.patientName || ''} 様へのプランのご提案`,
+    blocks: [
+      { body: '別タブの「プランビルダー」で作成した松竹梅プランを紐付けると、ここに自動表示されます。' },
+    ],
+  });
+
+  // 13. 締め
+  slides.push({
+    no: 13,
+    layout: 'closing',
+    title: '一緒に、不安のない生活を',
+    subtitle: '大口神経整体院',
+    blocks: [
+      { body: '本提案書は患者様の現状所見に基づく治療プランの叩き台です。ご質問・ご相談はいつでもどうぞ。' },
+    ],
+  });
+
+  return slides;
+}
+
+// ── 互換ヘルパー：従来のbuildProposalFromInputに slides も含めて返す
+export function buildProposalSlidesFromInput(args: Parameters<typeof generateProposalSlides>[0]): ProposalSlide[] {
+  return generateProposalSlides(args);
+}
+
