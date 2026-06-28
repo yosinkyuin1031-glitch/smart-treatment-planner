@@ -1,8 +1,98 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { MenuItem, MenuItemCategory, CATEGORIES } from '@/lib/types';
 import { generateId } from '@/lib/storage';
+
+// ===== CSV utilities =====
+
+function escapeCsvCell(value: string | number | boolean | undefined): string {
+  if (value === undefined || value === null) return '';
+  const s = String(value);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function itemsToCsv(items: MenuItem[]): string {
+  const headers = ['category', 'name', 'price', 'original_price', 'duration', 'unit', 'description', 'recommended', 'is_new', 'course_months', 'course_price', 'sort_order'];
+  const rows = items.map((i) => [
+    i.category,
+    i.name,
+    i.price,
+    i.originalPrice ?? '',
+    i.duration ?? '',
+    i.unit,
+    i.description ?? '',
+    i.recommended,
+    i.isNew,
+    i.courseMonths ?? '',
+    i.coursePrice ?? '',
+    i.order,
+  ].map(escapeCsvCell).join(','));
+  return [headers.join(','), ...rows].join('\n');
+}
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"' && line[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { cell += c; }
+    } else {
+      if (c === ',') { result.push(cell); cell = ''; }
+      else if (c === '"') { inQuotes = true; }
+      else { cell += c; }
+    }
+  }
+  result.push(cell);
+  return result;
+}
+
+function csvToItems(csv: string, startOrder: number): MenuItem[] {
+  const lines = csv.replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
+  const idx = (key: string) => headers.indexOf(key);
+  const items: MenuItem[] = [];
+  for (let li = 1; li < lines.length; li++) {
+    const cells = parseCsvLine(lines[li]);
+    const category = (cells[idx('category')] || '施術系').trim() as MenuItemCategory;
+    const name = (cells[idx('name')] || '').trim();
+    if (!name) continue;
+    const price = parseInt(cells[idx('price')] || '0', 10) || 0;
+    const originalPrice = cells[idx('original_price')] ? parseInt(cells[idx('original_price')], 10) : undefined;
+    const duration = cells[idx('duration')] ? parseInt(cells[idx('duration')], 10) : undefined;
+    const unit = (cells[idx('unit')] || '回').trim();
+    const description = cells[idx('description')]?.trim() || undefined;
+    const recommended = ['true', '1', 'yes', '○', '◯'].includes((cells[idx('recommended')] || '').trim().toLowerCase());
+    const isNew = ['true', '1', 'yes', '○', '◯'].includes((cells[idx('is_new')] || '').trim().toLowerCase());
+    const courseMonths = cells[idx('course_months')] ? parseInt(cells[idx('course_months')], 10) : undefined;
+    const coursePrice = cells[idx('course_price')] ? parseInt(cells[idx('course_price')], 10) : undefined;
+    const order = cells[idx('sort_order')] ? parseInt(cells[idx('sort_order')], 10) : startOrder + items.length;
+    items.push({
+      id: generateId() + '-' + li,
+      category,
+      name,
+      price,
+      originalPrice,
+      duration,
+      unit,
+      description,
+      recommended,
+      isNew,
+      courseMonths,
+      coursePrice,
+      order,
+    });
+  }
+  return items;
+}
 
 interface Props {
   items: MenuItem[];
@@ -70,6 +160,41 @@ export default function MenuManager({ items, onChange }: Props) {
 
   const catInfo = (cat: MenuItemCategory) => CATEGORIES.find(c => c.value === cat);
 
+  // CSV export
+  const fileRef = useRef<HTMLInputElement>(null);
+  function handleExport() {
+    const csv = itemsToCsv(items);
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `menu-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const csv = reader.result as string;
+      const parsed = csvToItems(csv, items.length);
+      if (parsed.length === 0) {
+        alert('CSVから有効な行を読み取れませんでした');
+        return;
+      }
+      const mode = confirm(`${parsed.length}件読み込みました。\n\nOKで既存メニューを置き換え／キャンセルで既存に追加します。`);
+      if (mode) {
+        onChange(parsed);
+      } else {
+        onChange([...items, ...parsed]);
+      }
+    };
+    reader.readAsText(f, 'utf-8');
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
   return (
     <div className="space-y-4">
       {/* Filter + Add */}
@@ -96,12 +221,30 @@ export default function MenuManager({ items, onChange }: Props) {
             </button>
           );
         })}
-        <button
-          onClick={addItem}
-          className="ml-auto px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
-        >
-          + メニュー追加
-        </button>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition"
+            title="CSVファイルからメニューを取り込む"
+          >
+            📥 CSV取込
+          </button>
+          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleImport} />
+          <button
+            onClick={handleExport}
+            disabled={items.length === 0}
+            className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            title="現在のメニューをCSVファイルでダウンロード"
+          >
+            📤 CSV出力
+          </button>
+          <button
+            onClick={addItem}
+            className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+          >
+            + メニュー追加
+          </button>
+        </div>
       </div>
 
       {/* Table */}
