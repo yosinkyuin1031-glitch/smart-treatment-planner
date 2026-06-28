@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
-import { Proposal, SymptomCategory, Severity, Gender, SYMPTOM_CATEGORIES, SEVERITIES, PlanSet, MenuItem, ProposalSlide, themeForSymptom } from '@/lib/types';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { Proposal, SymptomCategory, Severity, Gender, SYMPTOM_CATEGORIES, SEVERITIES, PlanSet, MenuItem, ProposalSlide, themeForSymptom, Prompt } from '@/lib/types';
 import { generateProposalSections, generateProposalSlides, buildProposalFromInput } from '@/lib/proposalPresets';
+import { getPromptsFromDB } from '@/lib/storage';
 import SlideRenderer from './SlideRenderer';
 
 type Mode = 'list' | 'edit' | 'preview';
@@ -47,6 +48,11 @@ interface Props {
 export default function ProposalManager({ proposals, planSets, menuItems, onSave, onDelete, showToast }: Props) {
   const [mode, setMode] = useState<Mode>('list');
   const [draft, setDraft] = useState<Proposal | null>(null);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+
+  useEffect(() => {
+    getPromptsFromDB().then(setPrompts).catch(() => {});
+  }, []);
 
   const startNew = () => {
     setDraft(emptyProposal());
@@ -131,6 +137,7 @@ export default function ProposalManager({ proposals, planSets, menuItems, onSave
         setDraft={setDraft}
         planSets={planSets}
         menuItems={menuItems}
+        prompts={prompts}
         showToast={showToast}
         onSave={handleSave}
         onCancel={cancel}
@@ -251,6 +258,7 @@ function ProposalForm({
   setDraft,
   planSets,
   menuItems,
+  prompts,
   showToast,
   onSave,
   onCancel,
@@ -260,6 +268,7 @@ function ProposalForm({
   setDraft: (p: Proposal) => void;
   planSets: PlanSet[];
   menuItems: MenuItem[];
+  prompts: Prompt[];
   showToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
   onSave: () => void;
   onCancel: () => void;
@@ -276,6 +285,7 @@ function ProposalForm({
         setDraft={setDraft}
         menuItems={menuItems}
         planSets={planSets}
+        prompts={prompts}
         showToast={showToast}
       />
 
@@ -573,14 +583,19 @@ function VoiceCapture({
   setDraft,
   menuItems,
   planSets,
+  prompts,
   showToast,
 }: {
   draft: Proposal;
   setDraft: (p: Proposal) => void;
   menuItems: MenuItem[];
   planSets: PlanSet[];
+  prompts: Prompt[];
   showToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
 }) {
+  const defaultPrompt = prompts.find((p) => p.isDefault) || prompts[0];
+  const [selectedPromptId, setSelectedPromptId] = useState<string>(defaultPrompt?.id || '');
+  const selectedPrompt = prompts.find((p) => p.id === selectedPromptId) || defaultPrompt;
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -679,6 +694,8 @@ function VoiceCapture({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transcript,
+          model: selectedPrompt?.model || 'claude',
+          customPrompt: selectedPrompt?.body || undefined,
           menuItems: menuItems.map((m) => ({
             name: m.name,
             category: m.category,
@@ -739,11 +756,26 @@ function VoiceCapture({
 
   return (
     <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl shadow-sm border border-purple-200 p-5">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
           <span>🎙️</span>音声で下書き（AIまとめ）
         </h2>
-        <span className="text-xs text-gray-500">録音 → 文字起こし → Claudeで構造化</span>
+        {prompts.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500">プロンプト</label>
+            <select
+              value={selectedPromptId}
+              onChange={(e) => setSelectedPromptId(e.target.value)}
+              className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
+            >
+              {prompts.map((p) => (
+                <option key={p.id} value={p.id}>{p.title}（{p.model}）{p.isDefault ? ' ★' : ''}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <span className="text-xs text-gray-500">録音 → 文字起こし → AIで構造化</span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-3">
