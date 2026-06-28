@@ -18,6 +18,7 @@ import PriceSimulation from '@/components/PriceSimulation';
 import ProposalManager from '@/components/ProposalManager';
 import PromptManager from '@/components/PromptManager';
 import ClinicSettingsManager from '@/components/ClinicSettingsManager';
+import OnboardingWizard from '@/components/OnboardingWizard';
 import { ClinicSettings, DEFAULT_CLINIC_SETTINGS } from '@/lib/types';
 import { getClinicSettings } from '@/lib/storage';
 import { User } from '@supabase/supabase-js';
@@ -42,6 +43,7 @@ export default function Home() {
   const [planSets, setPlanSets] = useState<PlanSet[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(DEFAULT_CLINIC_SETTINGS);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -226,10 +228,55 @@ export default function Home() {
     setToast('ログアウトしました');
   }
 
+  // ログイン直後、初期状態（院名未設定 & メニュー無し）なら自動でウィザード表示
+  useEffect(() => {
+    if (!mounted || authLoading || !user) return;
+    const onboardingSkipped = typeof window !== 'undefined' && localStorage.getItem('onboarding-skipped') === '1';
+    const isFreshAccount = (!clinicSettings.clinicName || clinicSettings.clinicName === '治療院') && menuItems.length === 0;
+    if (isFreshAccount && !onboardingSkipped) {
+      setShowOnboarding(true);
+    }
+  }, [mounted, authLoading, user, clinicSettings.clinicName, menuItems.length]);
+
+  async function reloadAll() {
+    if (!user) return;
+    const items = await getMenuItemsFromDB();
+    setMenuItems(items);
+    const sets = await getPlanSetsFromDB();
+    setPlanSets(sets);
+    const props = await getProposalsFromDB();
+    setProposals(props);
+    const cs = await getClinicSettings();
+    setClinicSettings(cs);
+  }
+
   if (!mounted || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-slate-400">読み込み中...</div>
+      </div>
+    );
+  }
+
+  // Onboarding overlay (新規ユーザー向け)
+  if (user && showOnboarding) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        {toast && (
+          <div className="fixed top-4 right-4 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">{toast}</div>
+        )}
+        <OnboardingWizard
+          initialSettings={clinicSettings}
+          onComplete={async () => {
+            setShowOnboarding(false);
+            await reloadAll();
+          }}
+          onSkip={() => {
+            if (typeof window !== 'undefined') localStorage.setItem('onboarding-skipped', '1');
+            setShowOnboarding(false);
+          }}
+          showToast={(msg) => setToast(msg)}
+        />
       </div>
     );
   }
