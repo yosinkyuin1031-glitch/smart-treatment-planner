@@ -75,15 +75,17 @@ export default function ProposalManager({ proposals, planSets, menuItems, onSave
       showToast('主訴を入力してください', 'warning');
       return;
     }
-    const sections = generateProposalSections({
-      patientName: draft.patientName,
-      symptomCategory: draft.symptomCategory,
-      severity: draft.severity,
-      chiefComplaint: draft.chiefComplaint,
-      background: draft.background,
-      observation: draft.observation,
-      specialNotes: draft.specialNotes,
-    });
+    const sections = draft.sections && draft.sections.length > 0
+      ? draft.sections
+      : generateProposalSections({
+          patientName: draft.patientName,
+          symptomCategory: draft.symptomCategory,
+          severity: draft.severity,
+          chiefComplaint: draft.chiefComplaint,
+          background: draft.background,
+          observation: draft.observation,
+          specialNotes: draft.specialNotes,
+        });
     const toSave: Proposal = { ...draft, sections, updatedAt: new Date().toISOString() };
     try {
       await onSave(toSave);
@@ -636,6 +638,7 @@ function VoiceCapture({
           observation?: string;
           specialNotes?: string;
           recommendedPlanSetId?: string;
+          sections?: { title: string; body: string }[];
         };
       };
       const r2 = data.result || {};
@@ -651,6 +654,7 @@ function VoiceCapture({
         observation: r2.observation || draft.observation,
         specialNotes: r2.specialNotes || draft.specialNotes,
         planSetId: r2.recommendedPlanSetId || draft.planSetId,
+        sections: r2.sections && r2.sections.length > 0 ? r2.sections : draft.sections,
       });
       showToast('Claudeで構造化しました。内容を確認・編集してください', 'success');
     } catch (e) {
