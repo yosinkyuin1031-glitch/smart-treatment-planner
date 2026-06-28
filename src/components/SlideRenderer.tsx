@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import { Proposal, ProposalSlide, SlideBlock, THEMES, themeForSymptom, PlanSet } from '@/lib/types';
+import { IconBrain, IconNerve, IconHeart, IconBowl, IconWalk, IconLeaf, IconMoon, IconAlert, IconPill, IconStretch, IconSpine, IconWatercolorAccent, SYMPTOM_ICONS } from './SlideIcons';
 
 interface Props {
   proposal: Proposal;
@@ -18,6 +19,13 @@ export default function SlideRenderer({ proposal, planSets = [], editable = fals
   const slides = proposal.slides || [];
   const planSet = planSets.find((ps) => ps.id === proposal.planSetId);
 
+  const SymptomIcon = SYMPTOM_ICONS[proposal.symptomCategory] || IconLeaf;
+  // 配色テーマに対応した水彩色
+  const watercolorPalette: Record<string, string> = {
+    blue: '#dbeafe', purple: '#ede9fe', orange: '#ffedd5', pink: '#fce7f3', green: '#dcfce7', gray: '#e2e8f0',
+  };
+  const watercolorColor = watercolorPalette[themeKey] || '#e2e8f0';
+
   return (
     <div className="space-y-6">
       {slides.map((slide) => (
@@ -26,16 +34,23 @@ export default function SlideRenderer({ proposal, planSets = [], editable = fals
           className={`relative bg-white border ${theme.borderColor} rounded-2xl shadow-sm overflow-hidden break-after-page print:shadow-none print:rounded-none`}
           style={{ aspectRatio: '297/210', minHeight: '210mm' }}
         >
+          {/* 水彩風背景装飾 */}
+          <IconWatercolorAccent className="absolute -top-10 -right-10 w-56 h-56 pointer-events-none" color={watercolorColor} />
+          <IconWatercolorAccent className="absolute -bottom-16 -left-12 w-48 h-48 pointer-events-none" color={watercolorColor} />
           <SlideContent
             slide={slide}
             theme={theme}
             proposal={proposal}
             planSet={planSet}
             editable={editable}
+            symptomIcon={SymptomIcon}
             onChange={(updated) => onSlideChange?.(slide.no, updated)}
           />
-          <div className={`absolute bottom-3 right-4 text-[10px] tracking-widest text-slate-400`}>
-            {slide.no}/{slides.length} ｜ {proposal.clinicName || '治療院'}
+          <div className={`absolute bottom-4 left-6 text-[10px] tracking-[0.3em] text-slate-400 uppercase`}>
+            {proposal.clinicNameEn || proposal.clinicName || 'Clinic'}
+          </div>
+          <div className={`absolute bottom-4 right-6 text-[10px] tracking-widest text-slate-400`}>
+            {String(slide.no).padStart(2, '0')} / {String(slides.length).padStart(2, '0')}
           </div>
         </div>
       ))}
@@ -49,6 +64,7 @@ function SlideContent({
   proposal,
   planSet,
   editable,
+  symptomIcon,
   onChange,
 }: {
   slide: ProposalSlide;
@@ -56,31 +72,32 @@ function SlideContent({
   proposal: Proposal;
   planSet?: PlanSet;
   editable: boolean;
+  symptomIcon: React.FC<{ className?: string; size?: number }>;
   onChange: (updated: ProposalSlide) => void;
 }) {
   switch (slide.layout) {
     case 'cover':
-      return <CoverLayout slide={slide} theme={theme} proposal={proposal} editable={editable} onChange={onChange} />;
+      return <CoverLayout slide={slide} theme={theme} proposal={proposal} symptomIcon={symptomIcon} editable={editable} onChange={onChange} />;
     case 'overview':
       return <OverviewLayout slide={slide} theme={theme} editable={editable} onChange={onChange} />;
     case 'iceberg':
       return <IcebergLayout slide={slide} theme={theme} />;
     case 'mechanism3':
-      return <ThreeColumnLayout slide={slide} theme={theme} />;
+      return <ThreeColumnLayout slide={slide} theme={theme} icons={[IconStretch, IconHeart, IconNerve]} />;
     case 'risks-grid':
-      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="warning" />;
+      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="warning" icons={[IconAlert, IconAlert, IconAlert, IconAlert]} />;
     case 'positives':
       return <PositivesLayout slide={slide} theme={theme} />;
     case 'policy-3':
-      return <ThreeColumnLayout slide={slide} theme={theme} showSubtitle />;
+      return <ThreeColumnLayout slide={slide} theme={theme} showSubtitle icons={[IconSpine, IconBrain, IconWalk]} />;
     case 'approach-4':
-      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="approach" />;
+      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="approach" icons={[IconNerve, IconBrain, IconBowl, IconWalk]} />;
     case 'changes-list':
       return <ChangesListLayout slide={slide} theme={theme} />;
     case 'schedule':
       return <ScheduleLayout slide={slide} theme={theme} />;
     case 'selfcare-4':
-      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="selfcare" />;
+      return <GridLayout slide={slide} theme={theme} cols={2} headerStyle="selfcare" icons={[IconStretch, IconWalk, IconMoon, IconPill]} />;
     case 'plan-3':
       return <PlanLayout slide={slide} theme={theme} planSet={planSet} />;
     case 'closing':
@@ -155,12 +172,14 @@ function CoverLayout({
   slide,
   theme,
   proposal,
+  symptomIcon: SymptomIcon,
   editable,
   onChange,
 }: {
   slide: ProposalSlide;
   theme: Theme;
   proposal: Proposal;
+  symptomIcon: React.FC<{ className?: string; size?: number }>;
   editable: boolean;
   onChange: (updated: ProposalSlide) => void;
 }) {
@@ -172,18 +191,21 @@ function CoverLayout({
   const coverImgIdx = findIdx('表紙画像');
 
   return (
-    <div className="h-full p-12 flex flex-col justify-between bg-white">
-      <div>
-        <div className={`text-[10px] text-slate-500 tracking-[0.3em] mb-3 uppercase`}>{proposal.clinicNameEn || proposal.clinicName || 'Clinic'}</div>
-        <H1 className="text-slate-800">{slide.title}</H1>
-        <p className="text-xs text-slate-500 mt-2">{today}</p>
+    <div className="relative h-full p-14 flex flex-col bg-white z-10">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className={`text-[10px] tracking-[0.4em] mb-3 ${theme.primaryText}`}>初回施術 ご提案書</div>
+          <p className="text-[10px] text-slate-400 tracking-wider">{today}</p>
+        </div>
+        <div className={`${theme.primaryText} opacity-50`}><SymptomIcon size={36} /></div>
       </div>
-      <div className="flex-1 flex items-center justify-center my-4">
-        {editable || coverImgIdx >= 0 ? (
-          <div className="w-64 h-40">
+
+      <div className="flex-1 flex flex-col justify-center items-center text-center px-8">
+        {(editable || coverImgIdx >= 0) && (
+          <div className="w-72 h-44 mb-6 opacity-95">
             <ImageUploadBox
               current={slide.blocks[coverImgIdx]?.illustration}
-              placeholder="表紙メイン画像"
+              placeholder="表紙メインビジュアル（任意）"
               emojiHint="🌿"
               onUpload={(b64) => {
                 if (coverImgIdx >= 0) {
@@ -194,21 +216,25 @@ function CoverLayout({
               }}
             />
           </div>
-        ) : null}
+        )}
+
+        <p className="text-[10px] text-slate-400 tracking-widest mb-3">主訴</p>
+        <p className="text-lg text-slate-800 leading-relaxed font-serif max-w-2xl">{complaint || '（主訴）'}</p>
+        {goal && (
+          <>
+            <div className={`h-px w-16 ${theme.accentBg} my-5`} />
+            <p className={`text-sm italic ${theme.primaryText} font-serif max-w-xl leading-relaxed`}>〜 {goal} 〜</p>
+          </>
+        )}
       </div>
-      <div className={`bg-slate-50 border border-slate-200 rounded-xl px-8 py-5 max-w-3xl mx-auto`}>
-        <p className="text-xs text-slate-500 mb-1 font-serif">主訴</p>
-        <p className="text-base text-slate-800 leading-relaxed">{complaint || '（主訴）'}</p>
-        {goal && <p className={`text-xs italic ${theme.primaryText} mt-3 font-serif`}>{goal}</p>}
-      </div>
-      <div className="text-right mt-4">
-        <p className="text-[10px] text-slate-400 mb-1">患者様</p>
-        <p className="text-xl font-serif font-bold text-slate-800 border-b border-slate-800 inline-block pb-0.5">
-          {proposal.patientName || '（患者名）'} 様
+
+      <div className="text-center">
+        <p className="text-2xl font-serif font-bold text-slate-800">
+          {proposal.patientName || '（患者名）'} <span className={`text-base font-normal ${theme.primaryText}`}>様</span>
         </p>
         {proposal.patientAge && (
-          <p className="text-xs text-slate-500 mt-1">
-            {proposal.patientAge}歳{proposal.patientGender ? ` / ${proposal.patientGender}` : ''}
+          <p className="text-xs text-slate-500 mt-1 tracking-wider">
+            {proposal.patientAge}歳{proposal.patientGender ? `／${proposal.patientGender}` : ''}
           </p>
         )}
       </div>
@@ -235,7 +261,7 @@ function OverviewLayout({
   const symptom = slide.blocks[symptomIdx]?.body || '';
   const bg = slide.blocks[bgIdx]?.body || '';
   return (
-    <div className="h-full p-10 flex flex-col bg-white">
+    <div className="relative h-full p-10 flex flex-col bg-white z-10">
       <H2 className="text-slate-800 mb-1">{slide.title}</H2>
       <div className={`h-px ${theme.accentBg} mb-6`} />
       <div className="grid grid-cols-2 gap-8 flex-1">
@@ -280,7 +306,7 @@ function IcebergLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme })
   const cause = slide.blocks[1];
   const note = slide.blocks[2];
   return (
-    <div className="h-full p-10 flex flex-col bg-white">
+    <div className="relative h-full p-10 flex flex-col bg-white z-10">
       <H2 className="text-slate-800">{slide.title}</H2>
       {slide.subtitle && <p className="text-xs text-slate-500 mt-1">{slide.subtitle}</p>}
       <div className={`h-px ${theme.accentBg} my-4`} />
@@ -312,27 +338,37 @@ function ThreeColumnLayout({
   slide,
   theme,
   showSubtitle = false,
+  icons,
 }: {
   slide: ProposalSlide;
   theme: Theme;
   showSubtitle?: boolean;
+  icons?: React.FC<{ className?: string; size?: number }>[];
 }) {
   return (
-    <div className="h-full p-10 flex flex-col bg-white">
+    <div className="relative h-full p-10 flex flex-col bg-white z-10">
       <H2 className="text-slate-800">{slide.title}</H2>
       {slide.subtitle && <p className="text-xs text-slate-500 mt-1">{slide.subtitle}</p>}
       <div className={`h-px ${theme.accentBg} my-4`} />
-      <div className="flex-1 grid grid-cols-3 gap-4">
-        {slide.blocks.slice(0, 3).map((b, i) => (
-          <div key={i} className={`rounded-2xl p-6 flex flex-col items-center text-center border ${theme.borderColor} ${theme.surfaceBg}`}>
-            <div className={`text-[10px] tracking-widest ${theme.primaryText} mb-3`}>STEP {i + 1}</div>
-            <p className="text-base font-serif font-bold text-slate-800 mb-2">{b.title}</p>
-            {showSubtitle && b.subtitle && (
-              <p className={`text-xs ${theme.primaryText} mb-2`}>{b.subtitle}</p>
-            )}
-            <p className="text-xs text-slate-600 leading-relaxed">{b.body}</p>
-          </div>
-        ))}
+      <div className="flex-1 grid grid-cols-3 gap-5">
+        {slide.blocks.slice(0, 3).map((b, i) => {
+          const Icon = icons?.[i];
+          return (
+            <div key={i} className={`rounded-2xl p-7 flex flex-col items-center text-center border ${theme.borderColor} bg-white/80 backdrop-blur-sm`}>
+              {Icon && (
+                <div className={`${theme.primaryText} mb-4 opacity-90`}>
+                  <Icon size={36} />
+                </div>
+              )}
+              <div className={`text-[10px] tracking-[0.3em] ${theme.primaryText} mb-3`}>STEP {String(i + 1).padStart(2, '0')}</div>
+              <p className="text-base font-serif font-bold text-slate-800 mb-2">{b.title}</p>
+              {showSubtitle && b.subtitle && (
+                <p className={`text-xs ${theme.primaryText} mb-2 font-serif`}>{b.subtitle}</p>
+              )}
+              <p className="text-xs text-slate-600 leading-relaxed">{b.body}</p>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -345,29 +381,35 @@ function GridLayout({
   theme,
   cols,
   headerStyle,
+  icons,
 }: {
   slide: ProposalSlide;
   theme: Theme;
   cols: 2 | 3;
   headerStyle: 'warning' | 'approach' | 'selfcare';
+  icons?: React.FC<{ className?: string; size?: number }>[];
 }) {
-  const accentClass =
+  const iconColor =
     headerStyle === 'warning'
-      ? 'text-rose-600 border-rose-200 bg-rose-50'
-      : `${theme.primaryText} ${theme.borderColor} ${theme.surfaceBg}`;
+      ? 'text-rose-500'
+      : theme.primaryText;
   return (
-    <div className="h-full p-10 flex flex-col bg-white">
+    <div className="relative h-full p-10 flex flex-col bg-white z-10">
       <H2 className="text-slate-800">{slide.title}</H2>
       <div className={`h-px ${theme.accentBg} my-4`} />
-      <div className={`flex-1 grid gap-4 ${cols === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-        {slide.blocks.slice(0, cols === 2 ? 4 : 6).map((b, i) => (
-          <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col">
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${accentClass} text-[10px] font-serif font-bold mb-3 self-start`}>
-              <span>{b.title}</span>
+      <div className={`flex-1 grid gap-5 ${cols === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+        {slide.blocks.slice(0, cols === 2 ? 4 : 6).map((b, i) => {
+          const Icon = icons?.[i];
+          return (
+            <div key={i} className="bg-white/80 backdrop-blur-sm border border-slate-200 rounded-2xl p-6 flex flex-col">
+              <div className="flex items-center gap-3 mb-3">
+                {Icon && <div className={`${iconColor} opacity-80`}><Icon size={26} /></div>}
+                <p className="text-sm font-serif font-bold text-slate-800 leading-tight">{b.title}</p>
+              </div>
+              <p className="text-sm text-slate-700 leading-relaxed">{b.body}</p>
             </div>
-            <p className="text-sm text-slate-700 leading-relaxed">{b.body}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -379,7 +421,7 @@ function PositivesLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme 
   const fact = slide.blocks[0];
   const conclusion = slide.blocks[1];
   return (
-    <div className="h-full p-10 flex flex-col bg-white">
+    <div className="relative h-full p-10 flex flex-col bg-white z-10">
       <H2 className="text-slate-800">{slide.title}</H2>
       <div className={`h-px ${theme.accentBg} my-4`} />
       <div className="flex-1 flex flex-col gap-5 justify-center max-w-3xl mx-auto w-full">
@@ -399,7 +441,7 @@ function PositivesLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme 
 
 function ChangesListLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }) {
   return (
-    <div className="h-full p-10 flex flex-col bg-white">
+    <div className="relative h-full p-10 flex flex-col bg-white z-10">
       <H2 className="text-slate-800">{slide.title}</H2>
       <div className={`h-px ${theme.accentBg} my-4`} />
       <div className="flex-1 flex flex-col justify-center gap-4 max-w-3xl mx-auto w-full">
@@ -422,7 +464,7 @@ function ScheduleLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }
   const stages = slide.blocks.slice(0, 3);
   const positive = slide.blocks[3];
   return (
-    <div className="h-full p-10 flex flex-col bg-white">
+    <div className="relative h-full p-10 flex flex-col bg-white z-10">
       <H2 className="text-slate-800">{slide.title}</H2>
       <div className={`h-px ${theme.accentBg} my-4`} />
       <div className="flex-1 flex flex-col gap-3">
@@ -458,7 +500,7 @@ function ScheduleLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }
 
 function PlanLayout({ slide, theme, planSet }: { slide: ProposalSlide; theme: Theme; planSet?: PlanSet }) {
   return (
-    <div className="h-full p-10 flex flex-col bg-white">
+    <div className="relative h-full p-10 flex flex-col bg-white z-10">
       <H2 className="text-slate-800">{slide.title}</H2>
       <p className="text-xs text-slate-500 mt-1">単発のメニュー合計より、お得な総合プランをご提案します</p>
       <div className={`h-px ${theme.accentBg} my-4`} />
@@ -523,7 +565,7 @@ function PlanLayout({ slide, theme, planSet }: { slide: ProposalSlide; theme: Th
 
 function ClosingLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }) {
   return (
-    <div className={`h-full p-12 flex flex-col items-center justify-center bg-white`}>
+    <div className={`relative h-full p-12 flex flex-col items-center justify-center bg-white z-10`}>
       <div className={`text-5xl mb-6 ${theme.primaryText}`}>—</div>
       <H1 className="text-slate-800 text-center mb-3">{slide.title}</H1>
       {slide.subtitle && <p className={`text-xs ${theme.primaryText} tracking-widest font-serif`}>{slide.subtitle}</p>}
@@ -538,7 +580,7 @@ function ClosingLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme })
 
 function DefaultLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme }) {
   return (
-    <div className="h-full p-10 bg-white">
+    <div className="relative h-full p-10 bg-white z-10">
       <H2 className="text-slate-800">{slide.title}</H2>
       {slide.subtitle && <p className="text-xs text-slate-500 mt-1">{slide.subtitle}</p>}
       <div className={`h-px ${theme.accentBg} my-4`} />
