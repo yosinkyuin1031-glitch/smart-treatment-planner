@@ -377,7 +377,7 @@ export function generateProposalSlides(input: {
       { title: '目標', body: '〜 痛みなく日常を過ごし、再発を防ぐために自分の体を理解してセルフケアができるようになりたい のために 〜' },
       { title: '日付', body: today },
     ],
-    meta: { clinic: '大口神経整体院' },
+    meta: {},
   });
 
   // 2. 現在のお悩みと状態
@@ -518,7 +518,7 @@ export function generateProposalSlides(input: {
     no: 13,
     layout: 'closing',
     title: '一緒に、不安のない生活を',
-    subtitle: '大口神経整体院',
+    subtitle: '',
     blocks: [
       { body: '本提案書は患者様の現状所見に基づく治療プランの叩き台です。ご質問・ご相談はいつでもどうぞ。' },
     ],

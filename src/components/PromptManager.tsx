@@ -10,7 +10,7 @@ const MODELS: { value: AiModel; label: string }[] = [
   { value: 'gemini', label: 'Gemini（Google）' },
 ];
 
-const STARTER_PROMPT = `あなたは大口神経整体院の院長が患者前で話した口頭メモから、患者向け「初回施術ご提案書」の素材を構造化するアシスタントです。
+const STARTER_PROMPT = `あなたは治療院（整体院・鍼灸院・整骨院など）の院長が患者前で話した口頭メモから、患者向け「初回施術ご提案書」の素材を構造化するアシスタントです。
 
 【提案書の構成】
 1. 主訴

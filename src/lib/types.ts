@@ -91,6 +91,8 @@ export interface Proposal {
   sections: ProposalSection[]; // 互換: 旧形式（A4 1枚版）
   slides?: ProposalSlide[]; // 新形式（13枚スライド）
   themeKey?: ThemeKey; // 配色テーマ。未指定なら症状カテゴリから自動決定
+  clinicName?: string;  // 院名（提案書スナップショット）
+  clinicNameEn?: string; // 院名英語表記（任意）
   createdAt: string;
   updatedAt: string;
 }
@@ -152,6 +154,28 @@ export const THEMES: Record<ThemeKey, Theme> = {
   pink:   { key: 'pink',   label: 'ピンク（女性向け・五十肩・肩こり）', primaryBg: 'bg-pink-600',    primaryText: 'text-pink-700',    accentBg: 'bg-pink-100',    accentText: 'text-pink-800',    surfaceBg: 'bg-pink-50',    borderColor: 'border-pink-200'   },
   green:  { key: 'green',  label: 'グリーン（栄養・サプリ・物販強調）', primaryBg: 'bg-emerald-700', primaryText: 'text-emerald-700', accentBg: 'bg-emerald-100', accentText: 'text-emerald-800', surfaceBg: 'bg-emerald-50', borderColor: 'border-emerald-200'},
   gray:   { key: 'gray',   label: 'グレー（その他・落ち着いた印象）', primaryBg: 'bg-slate-700',   primaryText: 'text-slate-700',   accentBg: 'bg-slate-100',   accentText: 'text-slate-800',   surfaceBg: 'bg-slate-50',   borderColor: 'border-slate-200'  },
+};
+
+// ====== 院設定（ユーザー単位の院プロファイル） ======
+
+export interface ClinicSettings {
+  userId?: string;
+  clinicName: string;
+  clinicNameEn?: string;
+  logoUrl?: string;
+  address?: string;
+  phone?: string;
+  tagline?: string;
+  updatedAt?: string;
+}
+
+export const DEFAULT_CLINIC_SETTINGS: ClinicSettings = {
+  clinicName: '治療院',
+  clinicNameEn: '',
+  logoUrl: '',
+  address: '',
+  phone: '',
+  tagline: '',
 };
 
 // ====== プロンプトテンプレート ======

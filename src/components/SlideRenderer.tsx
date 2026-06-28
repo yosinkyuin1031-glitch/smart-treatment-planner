@@ -35,7 +35,7 @@ export default function SlideRenderer({ proposal, planSets = [], editable = fals
             onChange={(updated) => onSlideChange?.(slide.no, updated)}
           />
           <div className={`absolute bottom-3 right-4 text-[10px] tracking-widest text-slate-400`}>
-            {slide.no}/{slides.length} ｜ 大口神経整体院
+            {slide.no}/{slides.length} ｜ {proposal.clinicName || '治療院'}
           </div>
         </div>
       ))}
@@ -174,7 +174,7 @@ function CoverLayout({
   return (
     <div className="h-full p-12 flex flex-col justify-between bg-white">
       <div>
-        <div className={`text-[10px] text-slate-500 tracking-[0.3em] mb-3`}>OGUCHI NEURAL INTEGRATION CLINIC</div>
+        <div className={`text-[10px] text-slate-500 tracking-[0.3em] mb-3 uppercase`}>{proposal.clinicNameEn || proposal.clinicName || 'Clinic'}</div>
         <H1 className="text-slate-800">{slide.title}</H1>
         <p className="text-xs text-slate-500 mt-2">{today}</p>
       </div>

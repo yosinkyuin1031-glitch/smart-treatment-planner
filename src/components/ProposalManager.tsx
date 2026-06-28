@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Proposal, SymptomCategory, Severity, Gender, SYMPTOM_CATEGORIES, SEVERITIES, PlanSet, MenuItem, ProposalSlide, themeForSymptom, Prompt } from '@/lib/types';
+import { Proposal, SymptomCategory, Severity, Gender, SYMPTOM_CATEGORIES, SEVERITIES, PlanSet, MenuItem, ProposalSlide, themeForSymptom, Prompt, ClinicSettings, DEFAULT_CLINIC_SETTINGS } from '@/lib/types';
 import { generateProposalSections, generateProposalSlides, buildProposalFromInput } from '@/lib/proposalPresets';
 import { getPromptsFromDB } from '@/lib/storage';
 import SlideRenderer from './SlideRenderer';
@@ -40,12 +40,13 @@ interface Props {
   proposals: Proposal[];
   planSets: PlanSet[];
   menuItems: MenuItem[];
+  clinicSettings?: ClinicSettings;
   onSave: (p: Proposal) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning') => void;
 }
 
-export default function ProposalManager({ proposals, planSets, menuItems, onSave, onDelete, showToast }: Props) {
+export default function ProposalManager({ proposals, planSets, menuItems, clinicSettings = DEFAULT_CLINIC_SETTINGS, onSave, onDelete, showToast }: Props) {
   const [mode, setMode] = useState<Mode>('list');
   const [draft, setDraft] = useState<Proposal | null>(null);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
@@ -55,7 +56,10 @@ export default function ProposalManager({ proposals, planSets, menuItems, onSave
   }, []);
 
   const startNew = () => {
-    setDraft(emptyProposal());
+    const p = emptyProposal();
+    p.clinicName = clinicSettings.clinicName;
+    p.clinicNameEn = clinicSettings.clinicNameEn;
+    setDraft(p);
     setMode('edit');
   };
 

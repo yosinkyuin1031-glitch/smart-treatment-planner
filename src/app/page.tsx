@@ -17,9 +17,12 @@ import PopGenerator from '@/components/PopGenerator';
 import PriceSimulation from '@/components/PriceSimulation';
 import ProposalManager from '@/components/ProposalManager';
 import PromptManager from '@/components/PromptManager';
+import ClinicSettingsManager from '@/components/ClinicSettingsManager';
+import { ClinicSettings, DEFAULT_CLINIC_SETTINGS } from '@/lib/types';
+import { getClinicSettings } from '@/lib/storage';
 import { User } from '@supabase/supabase-js';
 
-type Tab = 'proposal' | 'menu' | 'plan' | 'print' | 'pop' | 'sim' | 'prompts';
+type Tab = 'proposal' | 'menu' | 'plan' | 'print' | 'pop' | 'sim' | 'prompts' | 'clinic';
 
 const TABS: { value: Tab; label: string; icon: string }[] = [
   { value: 'proposal', label: '提案書', icon: '📄' },
@@ -29,6 +32,7 @@ const TABS: { value: Tab; label: string; icon: string }[] = [
   { value: 'pop', label: 'POP生成', icon: '🎨' },
   { value: 'sim', label: '価格分析', icon: '📊' },
   { value: 'prompts', label: 'プロンプト管理', icon: '✨' },
+  { value: 'clinic', label: '院設定', icon: '🏥' },
 ];
 
 export default function Home() {
@@ -37,6 +41,7 @@ export default function Home() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [planSets, setPlanSets] = useState<PlanSet[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [clinicSettings, setClinicSettings] = useState<ClinicSettings>(DEFAULT_CLINIC_SETTINGS);
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +73,8 @@ export default function Home() {
           setPlanSets(sets);
           const props = await getProposalsFromDB();
           setProposals(props);
+          const cs = await getClinicSettings();
+          setClinicSettings(cs);
         } else {
           setMenuItems(getMenuItems());
           setPlanSets(getPlanSets());
@@ -102,6 +109,8 @@ export default function Home() {
         setPlanSets(sets);
         const props = await getProposalsFromDB();
         setProposals(props);
+        const cs = await getClinicSettings();
+        setClinicSettings(cs);
       } else {
         setMenuItems(getMenuItems());
         setPlanSets(getPlanSets());
@@ -363,6 +372,7 @@ export default function Home() {
             proposals={proposals}
             planSets={planSets}
             menuItems={menuItems}
+            clinicSettings={clinicSettings}
             onSave={handleSaveProposal}
             onDelete={handleDeleteProposal}
             showToast={(msg) => setToast(msg)}
@@ -374,6 +384,7 @@ export default function Home() {
         {activeTab === 'pop' && <PopGenerator items={menuItems} />}
         {activeTab === 'sim' && <PriceSimulation items={menuItems} />}
         {activeTab === 'prompts' && <PromptManager showToast={(msg) => setToast(msg)} />}
+        {activeTab === 'clinic' && <ClinicSettingsManager showToast={(msg) => setToast(msg)} onSettingsChange={setClinicSettings} />}
       </main>
     </div>
   );

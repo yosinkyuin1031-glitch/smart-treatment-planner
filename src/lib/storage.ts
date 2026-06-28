@@ -12,18 +12,14 @@ export function generateId(): string {
 // ── Default Data ──
 
 const defaultMenuItems: MenuItem[] = [
-  { id: '1', category: '施術系', name: '神経整体施術', price: 10000, duration: 50, unit: '回', description: '自律神経・脳神経にアプローチする根本施術', recommended: true, isNew: false, order: 1 },
-  { id: '2', category: '施術系', name: '内臓整体', price: 6600, duration: 30, unit: '回', description: '内臓機能を活性化する手技療法', recommended: false, isNew: false, order: 2 },
-  { id: '3', category: '施術系', name: 'メディカルヘッドスパ', price: 6600, duration: 30, unit: '回', description: '頭蓋骨調整を含むリラクゼーション', recommended: false, isNew: true, order: 3 },
-  { id: '4', category: '物販系', name: '血流改善サプリ', price: 11000, unit: 'ヶ月', description: '血行促進のための栄養補助食品', recommended: false, isNew: false, order: 4 },
-  { id: '5', category: '物販系', name: '腸内環境改善サプリ', price: 4400, unit: 'ヶ月', description: '腸内フローラを整えるサプリメント', recommended: false, isNew: false, order: 5 },
-  { id: '6', category: '物販系', name: 'ビタミンB群', price: 5500, unit: 'ヶ月', description: '神経機能サポートのビタミン', recommended: false, isNew: false, order: 6 },
-  { id: '7', category: '物販系', name: 'ビタミンC', price: 5500, unit: 'ヶ月', description: '免疫力・回復力アップのサプリ', recommended: false, isNew: false, order: 7 },
-  { id: '8', category: 'オプション系', name: '歩行指導プログラム', price: 30000, unit: 'セット', description: '正しい歩行パターンの指導', recommended: false, isNew: false, order: 8 },
-  { id: '9', category: 'オプション系', name: '栄養指導', price: 20000, unit: 'セット', description: '食事改善の個別指導プログラム', recommended: false, isNew: false, order: 9 },
-  { id: '10', category: 'オプション系', name: 'ブレイントレーニング', price: 30000, unit: 'セット', description: '脳機能向上のトレーニング', recommended: false, isNew: true, order: 10 },
-  { id: '11', category: 'オプション系', name: 'セルフケア指導', price: 0, unit: '回', description: '自宅でのケア方法の指導', recommended: false, isNew: false, order: 11 },
-  { id: '12', category: 'オプション系', name: 'DNA検査', price: 29800, unit: '回', description: '遺伝子検査による体質分析', recommended: false, isNew: false, order: 12 },
+  { id: '1', category: '施術系', name: '初回カウンセリング＋施術', price: 8000, duration: 90, unit: '回', description: '丁寧なカウンセリング・検査・初回施術込み', recommended: true, isNew: false, order: 1 },
+  { id: '2', category: '施術系', name: '基本施術60分', price: 6000, duration: 60, unit: '回', description: '院オリジナルの基本施術コース', recommended: false, isNew: false, order: 2 },
+  { id: '3', category: '施術系', name: '集中施術90分', price: 9000, duration: 90, unit: '回', description: '複数部位の集中施術', recommended: false, isNew: false, order: 3 },
+  { id: '4', category: '物販系', name: 'おすすめサプリA', price: 5500, unit: 'ヶ月', description: '院長おすすめサプリメント', recommended: false, isNew: false, order: 4 },
+  { id: '5', category: '物販系', name: 'おすすめサプリB', price: 4400, unit: 'ヶ月', description: '院長おすすめサプリメント', recommended: false, isNew: false, order: 5 },
+  { id: '6', category: 'オプション系', name: '運動指導プログラム', price: 20000, unit: 'セット', description: '正しい姿勢・運動パターンの指導', recommended: false, isNew: false, order: 6 },
+  { id: '7', category: 'オプション系', name: '栄養指導', price: 15000, unit: 'セット', description: '食事改善の個別指導', recommended: false, isNew: false, order: 7 },
+  { id: '8', category: 'オプション系', name: 'セルフケア指導', price: 0, unit: '回', description: '自宅でのケア方法の指導（施術プランに含む）', recommended: false, isNew: false, order: 8 },
 ];
 
 // ── Auth ──
@@ -550,6 +546,8 @@ function mapProposalRow(row: Record<string, unknown>): Proposal {
     sections: (row.sections as ProposalSection[]) || [],
     slides: (row.slides as Proposal['slides']) || [],
     themeKey: (row.theme_key as Proposal['themeKey']) || undefined,
+    clinicName: (row.clinic_name as string) || undefined,
+    clinicNameEn: (row.clinic_name_en as string) || undefined,
     createdAt: (row.created_at as string) || new Date().toISOString(),
     updatedAt: (row.updated_at as string) || new Date().toISOString(),
   };
@@ -608,6 +606,8 @@ export async function saveProposalToDB(p: Proposal): Promise<Proposal> {
     sections: p.sections,
     slides: p.slides || [],
     theme_key: p.themeKey || null,
+    clinic_name: p.clinicName || null,
+    clinic_name_en: p.clinicNameEn || null,
     updated_at: now,
   };
   const isNew = !p.id || p.id.startsWith('local-');
@@ -718,4 +718,60 @@ export async function setDefaultPrompt(id: string): Promise<void> {
   // 対象だけ true
   const { error } = await supabase.from('mp_prompts').update({ is_default: true }).eq('id', id);
   if (error) throw error;
+}
+
+// ====== Clinic Settings ======
+
+import { ClinicSettings, DEFAULT_CLINIC_SETTINGS } from './types';
+
+export async function getClinicSettings(): Promise<ClinicSettings> {
+  const user = await getUser();
+  if (!user) return DEFAULT_CLINIC_SETTINGS;
+  const { data, error } = await supabase
+    .from('mp_clinic_settings')
+    .select('*')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error || !data) return DEFAULT_CLINIC_SETTINGS;
+  return {
+    userId: data.user_id,
+    clinicName: data.clinic_name || '治療院',
+    clinicNameEn: data.clinic_name_en || '',
+    logoUrl: data.logo_url || '',
+    address: data.address || '',
+    phone: data.phone || '',
+    tagline: data.tagline || '',
+    updatedAt: data.updated_at,
+  };
+}
+
+export async function saveClinicSettings(s: ClinicSettings): Promise<ClinicSettings> {
+  const user = await getUser();
+  if (!user) throw new Error('ログインが必要です');
+  const payload = {
+    user_id: user.id,
+    clinic_name: s.clinicName || '治療院',
+    clinic_name_en: s.clinicNameEn || '',
+    logo_url: s.logoUrl || '',
+    address: s.address || '',
+    phone: s.phone || '',
+    tagline: s.tagline || '',
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from('mp_clinic_settings')
+    .upsert(payload, { onConflict: 'user_id' })
+    .select()
+    .single();
+  if (error) throw error;
+  return {
+    userId: data.user_id,
+    clinicName: data.clinic_name,
+    clinicNameEn: data.clinic_name_en,
+    logoUrl: data.logo_url,
+    address: data.address,
+    phone: data.phone,
+    tagline: data.tagline,
+    updatedAt: data.updated_at,
+  };
 }
