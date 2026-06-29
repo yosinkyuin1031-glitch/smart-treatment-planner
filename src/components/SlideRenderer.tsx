@@ -187,6 +187,10 @@ function CoverLayout({
   return (
     <div className="relative h-full p-14 flex flex-col bg-white z-10">
       <div className="text-center">
+        {proposal.clinicLogoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={proposal.clinicLogoUrl} alt="logo" className="h-12 mx-auto mb-3 object-contain" />
+        )}
         <div className={`text-[10px] tracking-[0.4em] mb-3 ${theme.primaryText}`}>初回施術 ご提案書</div>
         <p className="text-[10px] text-slate-400 tracking-wider">{today}</p>
       </div>

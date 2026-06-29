@@ -59,6 +59,19 @@ export default function ProposalManager({ proposals, planSets, menuItems, clinic
     const p = emptyProposal();
     p.clinicName = clinicSettings.clinicName;
     p.clinicNameEn = clinicSettings.clinicNameEn;
+    p.clinicLogoUrl = clinicSettings.logoUrl;
+    setDraft(p);
+    setMode('edit');
+  };
+
+  const startDuplicate = (src: Proposal) => {
+    const p: Proposal = {
+      ...src,
+      id: makeId(),
+      patientName: src.patientName + '（コピー）',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     setDraft(p);
     setMode('edit');
   };
@@ -192,6 +205,7 @@ export default function ProposalManager({ proposals, planSets, menuItems, clinic
       onEdit={startEdit}
       onPreview={startPreview}
       onDelete={handleDelete}
+      onDuplicate={startDuplicate}
     />
   );
 }
@@ -204,12 +218,14 @@ function ProposalList({
   onEdit,
   onPreview,
   onDelete,
+  onDuplicate,
 }: {
   proposals: Proposal[];
   onNew: () => void;
   onEdit: (p: Proposal) => void;
   onPreview: (p: Proposal) => void;
   onDelete: (id: string) => void;
+  onDuplicate: (p: Proposal) => void;
 }) {
   return (
     <>
@@ -244,6 +260,7 @@ function ProposalList({
                 <div className="flex flex-col gap-1 shrink-0">
                   <button onClick={() => onPreview(p)} className="text-sm text-slate-600 hover:text-slate-800 px-3 py-1 bg-slate-100 rounded-lg font-bold">プレビュー</button>
                   <button onClick={() => onEdit(p)} className="text-sm text-slate-600 hover:text-slate-800 px-3 py-1 bg-slate-100 rounded-lg font-bold">編集</button>
+                  <button onClick={() => onDuplicate(p)} className="text-sm text-emerald-700 hover:text-emerald-900 px-3 py-1 bg-emerald-50 rounded-lg font-bold">複製</button>
                   <button onClick={() => onDelete(p.id)} className="text-sm text-red-600 hover:text-red-800 px-3 py-1 bg-red-50 rounded-lg font-bold">削除</button>
                 </div>
               </div>

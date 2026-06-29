@@ -93,6 +93,7 @@ export interface Proposal {
   themeKey?: ThemeKey; // 配色テーマ。未指定なら症状カテゴリから自動決定
   clinicName?: string;  // 院名（提案書スナップショット）
   clinicNameEn?: string; // 院名英語表記（任意）
+  clinicLogoUrl?: string; // 院ロゴ画像（base64・スナップショット）
   createdAt: string;
   updatedAt: string;
 }

@@ -548,6 +548,7 @@ function mapProposalRow(row: Record<string, unknown>): Proposal {
     themeKey: (row.theme_key as Proposal['themeKey']) || undefined,
     clinicName: (row.clinic_name as string) || undefined,
     clinicNameEn: (row.clinic_name_en as string) || undefined,
+    clinicLogoUrl: (row.clinic_logo_url as string) || undefined,
     createdAt: (row.created_at as string) || new Date().toISOString(),
     updatedAt: (row.updated_at as string) || new Date().toISOString(),
   };
@@ -608,6 +609,7 @@ export async function saveProposalToDB(p: Proposal): Promise<Proposal> {
     theme_key: p.themeKey || null,
     clinic_name: p.clinicName || null,
     clinic_name_en: p.clinicNameEn || null,
+    clinic_logo_url: p.clinicLogoUrl || null,
     updated_at: now,
   };
   const isNew = !p.id || p.id.startsWith('local-');
