@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Proposal, ProposalSlide, SlideBlock, THEMES, themeForSymptom, PlanSet } from '@/lib/types';
 import { IconWatercolorAccent } from './SlideIcons';
 
@@ -75,7 +75,7 @@ function SlideContent({
     case 'cover':
       return <CoverLayout slide={slide} theme={theme} proposal={proposal} editable={editable} onChange={onChange} />;
     case 'overview':
-      return <OverviewLayout slide={slide} theme={theme} editable={editable} onChange={onChange} />;
+      return <OverviewLayout slide={slide} theme={theme} symptomCategory={proposal.symptomCategory} editable={editable} onChange={onChange} />;
     case 'iceberg':
       return <IcebergLayout slide={slide} theme={theme} />;
     case 'mechanism3':
@@ -118,14 +118,17 @@ function ImageUploadBox({
   onUpload,
   className = '',
   emojiHint,
+  aiPrompt,
 }: {
   current?: string;
   placeholder?: string;
   onUpload: (base64: string) => void;
   className?: string;
   emojiHint?: string;
+  aiPrompt?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  const [generating, setGenerating] = useState(false);
   const handle = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -134,6 +137,28 @@ function ImageUploadBox({
       if (typeof reader.result === 'string') onUpload(reader.result);
     };
     reader.readAsDataURL(f);
+  };
+  const generate = async () => {
+    if (!aiPrompt) return;
+    setGenerating(true);
+    try {
+      const r = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: aiPrompt, size: '1792x1024', style: 'natural' }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        alert(`生成失敗: ${err.error || 'unknown'}`);
+        return;
+      }
+      const data = (await r.json()) as { image: string };
+      onUpload(data.image);
+    } catch (e) {
+      alert(`エラー: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setGenerating(false);
+    }
   };
   return (
     <div className={`relative ${className}`}>
@@ -146,12 +171,23 @@ function ImageUploadBox({
           <p className="text-xs">{placeholder}</p>
         </div>
       )}
-      <button
-        onClick={() => ref.current?.click()}
-        className="absolute bottom-2 right-2 px-2 py-1 text-[10px] bg-white border border-slate-300 rounded shadow-sm hover:bg-slate-50 print:hidden"
-      >
-        {current ? '差替え' : '画像追加'}
-      </button>
+      <div className="absolute bottom-2 right-2 flex gap-1 print:hidden">
+        {aiPrompt && (
+          <button
+            onClick={generate}
+            disabled={generating}
+            className="px-2 py-1 text-[10px] bg-violet-600 text-white rounded shadow-sm hover:bg-violet-700 disabled:opacity-50"
+          >
+            {generating ? '生成中…' : '🎨 AI生成'}
+          </button>
+        )}
+        <button
+          onClick={() => ref.current?.click()}
+          className="px-2 py-1 text-[10px] bg-white border border-slate-300 rounded shadow-sm hover:bg-slate-50"
+        >
+          {current ? '差替え' : '画像追加'}
+        </button>
+      </div>
       <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handle} />
     </div>
   );
@@ -202,6 +238,7 @@ function CoverLayout({
               current={slide.blocks[coverImgIdx]?.illustration}
               placeholder="表紙メインビジュアル（任意）"
               emojiHint="🌿"
+              aiPrompt={`水彩タッチで描かれた穏やかな自然風景（緑の小道・木漏れ日・優しい光）、人物無し、温かみのある淡いトーン、ミニマルで上品なデザイン。提案書の表紙に使用。${proposal.symptomCategory}の症状を持つ患者向け。`}
               onUpload={(b64) => {
                 if (coverImgIdx >= 0) {
                   onChange(updateBlockField(slide, coverImgIdx, 'illustration', b64));
@@ -242,11 +279,13 @@ function CoverLayout({
 function OverviewLayout({
   slide,
   theme,
+  symptomCategory,
   editable,
   onChange,
 }: {
   slide: ProposalSlide;
   theme: Theme;
+  symptomCategory?: string;
   editable: boolean;
   onChange: (updated: ProposalSlide) => void;
 }) {
@@ -276,6 +315,7 @@ function OverviewLayout({
               current={slide.blocks[illustIdx]?.illustration}
               placeholder="体のイラスト挿入枠"
               emojiHint="🧍"
+              aiPrompt={`線画タッチで描かれた人体の医学イラスト。背景は白。${symptomCategory || ''}の部位を控えめに示す。落ち着いた上品なトーン、青系のアクセント。提案書スライド用。`}
               onUpload={(b64) => {
                 if (illustIdx >= 0) onChange(updateBlockField(slide, illustIdx, 'illustration', b64));
                 else onChange({ ...slide, blocks: [...slide.blocks, { title: '体のイラスト', illustration: b64 }] });
