@@ -578,16 +578,23 @@ function ProposalPreview({
   const planSet = useMemo(() => planSets.find((ps) => ps.id === proposal.planSetId), [planSets, proposal.planSetId]);
   const useSlides = proposal.slides && proposal.slides.length > 0;
   const [editMode, setEditMode] = useState(false);
+  const [textEditMode, setTextEditMode] = useState(false);
 
   if (useSlides) {
     return (
       <div>
-        <div className="flex items-center justify-between mb-4 print:hidden">
+        <div className="flex items-center justify-between mb-4 print:hidden flex-wrap gap-2">
           <button onClick={onBack} className="text-sm text-gray-600 hover:text-gray-800">&larr; 戻る</button>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500">{proposal.slides!.length}枚のスライド形式</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500">{proposal.slides!.length}枚</span>
             <button
-              onClick={() => setEditMode((v) => !v)}
+              onClick={() => { setTextEditMode((v) => !v); setEditMode(false); }}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition ${textEditMode ? 'bg-amber-600 text-white hover:bg-amber-700' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'}`}
+            >
+              {textEditMode ? '✓ 文章編集中' : '📝 文章を編集'}
+            </button>
+            <button
+              onClick={() => { setEditMode((v) => !v); setTextEditMode(false); }}
               className={`px-3 py-2 rounded-lg text-xs font-bold transition ${editMode ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'}`}
             >
               {editMode ? '✓ 画像編集中' : '🖼️ 画像を編集'}
@@ -597,10 +604,16 @@ function ProposalPreview({
             </button>
           </div>
         </div>
+        {(textEditMode || editMode) && (
+          <div className="mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 print:hidden">
+            ✏️ 編集モード中です。変更は自動で下書きに反映されます。仕上がりを確認するには編集モードをOFFに戻してください。「保存」を押すとデータが永続化されます（戻る前に保存を忘れずに）。
+          </div>
+        )}
         <SlideRenderer
           proposal={proposal}
           planSets={planSets}
           editable={editMode}
+          textEditable={textEditMode}
           onSlideChange={(slideNo, updated) => {
             if (!onProposalChange) return;
             const newSlides = (proposal.slides || []).map((s) => (s.no === slideNo ? updated : s));

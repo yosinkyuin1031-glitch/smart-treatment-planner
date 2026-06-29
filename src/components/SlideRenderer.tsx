@@ -8,12 +8,13 @@ interface Props {
   proposal: Proposal;
   planSets?: PlanSet[];
   editable?: boolean;
+  textEditable?: boolean;
   onSlideChange?: (slideNo: number, updated: ProposalSlide) => void;
 }
 
 type Theme = (typeof THEMES)[keyof typeof THEMES];
 
-export default function SlideRenderer({ proposal, planSets = [], editable = false, onSlideChange }: Props) {
+export default function SlideRenderer({ proposal, planSets = [], editable = false, textEditable = false, onSlideChange }: Props) {
   const themeKey = proposal.themeKey || themeForSymptom(proposal.symptomCategory);
   const theme = THEMES[themeKey];
   const slides = proposal.slides || [];
@@ -42,6 +43,7 @@ export default function SlideRenderer({ proposal, planSets = [], editable = fals
             proposal={proposal}
             planSet={planSet}
             editable={editable}
+            textEditable={textEditable}
             onChange={(updated) => onSlideChange?.(slide.no, updated)}
           />
           <div className={`absolute bottom-4 left-6 text-[10px] tracking-[0.3em] text-slate-400 uppercase`}>
@@ -62,6 +64,7 @@ function SlideContent({
   proposal,
   planSet,
   editable,
+  textEditable,
   onChange,
 }: {
   slide: ProposalSlide;
@@ -69,8 +72,12 @@ function SlideContent({
   proposal: Proposal;
   planSet?: PlanSet;
   editable: boolean;
+  textEditable: boolean;
   onChange: (updated: ProposalSlide) => void;
 }) {
+  if (textEditable) {
+    return <TextEditLayout slide={slide} theme={theme} onChange={onChange} />;
+  }
   switch (slide.layout) {
     case 'cover':
       return <CoverLayout slide={slide} theme={theme} proposal={proposal} editable={editable} onChange={onChange} />;
@@ -590,6 +597,86 @@ function ClosingLayout({ slide, theme }: { slide: ProposalSlide; theme: Theme })
       <p className="text-sm text-slate-600 leading-relaxed mt-8 max-w-xl text-center font-serif">
         {slide.blocks[0]?.body}
       </p>
+    </div>
+  );
+}
+
+// ===== テキスト編集モード（全スライド共通の編集UI） =====
+
+function TextEditLayout({
+  slide,
+  theme,
+  onChange,
+}: {
+  slide: ProposalSlide;
+  theme: Theme;
+  onChange: (updated: ProposalSlide) => void;
+}) {
+  const updateTitle = (v: string) => onChange({ ...slide, title: v });
+  const updateSubtitle = (v: string) => onChange({ ...slide, subtitle: v });
+  const updateBlock = (i: number, field: 'title' | 'subtitle' | 'body', v: string) => {
+    const blocks = slide.blocks.map((b, idx) => (idx === i ? { ...b, [field]: v } : b));
+    onChange({ ...slide, blocks });
+  };
+  const addBlock = () => onChange({ ...slide, blocks: [...slide.blocks, { title: '', body: '' }] });
+  const removeBlock = (i: number) => onChange({ ...slide, blocks: slide.blocks.filter((_, idx) => idx !== i) });
+
+  return (
+    <div className="relative h-full p-8 flex flex-col bg-white z-10 overflow-auto">
+      <div className={`text-[10px] tracking-widest ${theme.primaryText} mb-1`}>SLIDE {String(slide.no).padStart(2, '0')} ／ {slide.layout}</div>
+      <div className="space-y-3 mb-3">
+        <div>
+          <label className="text-[10px] text-slate-500">タイトル</label>
+          <input
+            type="text"
+            value={slide.title}
+            onChange={(e) => updateTitle(e.target.value)}
+            className={`w-full border ${theme.borderColor} rounded px-2 py-1 text-sm font-bold`}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-slate-500">サブタイトル（任意）</label>
+          <input
+            type="text"
+            value={slide.subtitle || ''}
+            onChange={(e) => updateSubtitle(e.target.value)}
+            className={`w-full border ${theme.borderColor} rounded px-2 py-1 text-xs`}
+          />
+        </div>
+      </div>
+      <div className={`h-px ${theme.accentBg} mb-3`} />
+      <div className="space-y-3 flex-1">
+        {slide.blocks.map((b, i) => (
+          <div key={i} className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+            <div className="flex items-start justify-between mb-2">
+              <span className="text-[10px] text-slate-500">ブロック {i + 1}</span>
+              <button onClick={() => removeBlock(i)} className="text-[10px] text-red-500 hover:text-red-700">削除</button>
+            </div>
+            <input
+              type="text"
+              value={b.title || ''}
+              onChange={(e) => updateBlock(i, 'title', e.target.value)}
+              placeholder="ブロックタイトル（任意）"
+              className="w-full border border-slate-300 rounded px-2 py-1 text-sm font-bold mb-2"
+            />
+            <input
+              type="text"
+              value={b.subtitle || ''}
+              onChange={(e) => updateBlock(i, 'subtitle', e.target.value)}
+              placeholder="サブ（任意）"
+              className="w-full border border-slate-300 rounded px-2 py-1 text-xs mb-2"
+            />
+            <textarea
+              value={b.body || ''}
+              onChange={(e) => updateBlock(i, 'body', e.target.value)}
+              placeholder="本文"
+              rows={3}
+              className="w-full border border-slate-300 rounded px-2 py-1 text-sm resize-none"
+            />
+          </div>
+        ))}
+        <button onClick={addBlock} className={`text-xs ${theme.primaryText} hover:underline`}>+ ブロックを追加</button>
+      </div>
     </div>
   );
 }
