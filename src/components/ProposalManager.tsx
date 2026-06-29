@@ -227,23 +227,120 @@ function ProposalList({
   onDelete: (id: string) => void;
   onDuplicate: (p: Proposal) => void;
 }) {
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<SymptomCategory | 'all'>('all');
+  const [severityFilter, setSeverityFilter] = useState<Severity | 'all'>('all');
+  const [sortBy, setSortBy] = useState<'updated' | 'created' | 'name'>('updated');
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = proposals.filter((p) => {
+      if (categoryFilter !== 'all' && p.symptomCategory !== categoryFilter) return false;
+      if (severityFilter !== 'all' && p.severity !== severityFilter) return false;
+      if (q) {
+        const hay = `${p.patientName} ${p.chiefComplaint} ${p.background} ${p.observation}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    list = [...list].sort((a, b) => {
+      if (sortBy === 'name') return a.patientName.localeCompare(b.patientName, 'ja');
+      if (sortBy === 'created') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+    return list;
+  }, [proposals, search, categoryFilter, severityFilter, sortBy]);
+
   return (
     <>
-      <button
-        onClick={onNew}
-        className="mb-6 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow"
-      >
-        + 新しい提案書を作成
-      </button>
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <button
+          onClick={onNew}
+          className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-blue-700 transition shadow"
+        >
+          + 新しい提案書を作成
+        </button>
+        <p className="text-xs text-slate-500 ml-auto">
+          {filtered.length}件 / 全{proposals.length}件
+        </p>
+      </div>
+
+      {proposals.length > 0 && (
+        <div className="mb-4 bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 shrink-0">🔍 検索</span>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="患者名・主訴・背景・所見から検索"
+              className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm"
+            />
+            {(search || categoryFilter !== 'all' || severityFilter !== 'all') && (
+              <button
+                onClick={() => { setSearch(''); setCategoryFilter('all'); setSeverityFilter('all'); }}
+                className="text-xs text-slate-500 hover:text-slate-700 px-2"
+              >
+                クリア
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">症状</span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value as SymptomCategory | 'all')}
+                className="border border-slate-300 rounded px-2 py-1 text-xs bg-white"
+              >
+                <option value="all">すべて</option>
+                {SYMPTOM_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">重症度</span>
+              <select
+                value={severityFilter}
+                onChange={(e) => setSeverityFilter(e.target.value as Severity | 'all')}
+                className="border border-slate-300 rounded px-2 py-1 text-xs bg-white"
+              >
+                <option value="all">すべて</option>
+                {SEVERITIES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1.5 ml-auto">
+              <span className="text-xs text-slate-500">並び順</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'updated' | 'created' | 'name')}
+                className="border border-slate-300 rounded px-2 py-1 text-xs bg-white"
+              >
+                <option value="updated">更新日（新しい順）</option>
+                <option value="created">作成日（新しい順）</option>
+                <option value="name">患者名</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {proposals.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <p>提案書がありません</p>
           <p className="text-sm mt-1">「+ 新しい提案書を作成」から、患者ごとの提案書を作成できます</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">
+          <p>該当する提案書がありません</p>
+          <p className="text-sm mt-1">検索条件を変更するか、「クリア」で全件表示に戻してください</p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {proposals.map((p) => (
+          {filtered.map((p) => (
             <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex-1 min-w-0">
